@@ -63,13 +63,14 @@ const localitiesData = [
 ];
 
 const usersData = [
-  { name: 'Sistema Principal', email: 'admin@dcompras.com', role: 'Super Admin', scope: 'Global', status: 'active', loc: 'Todas' },
-  { name: 'Juan Pérez', email: 'juan@sastre.com', role: 'Admin Local', scope: 'Localidad', status: 'active', loc: 'Sastre' },
-  { name: 'María Gómez', email: 'maria@sanjorge.com', role: 'Admin Local', scope: 'Localidad', status: 'active', loc: 'San Jorge' },
-  { name: 'Carlos D.', email: 'carlos@pizzeria.com', role: 'Comercio', scope: 'Pizzería Roma', status: 'active', loc: 'Sastre' },
-  { name: 'Ana L.', email: 'ana@tienda.com', role: 'Comercio', scope: 'Tienda Mía', status: 'pending', loc: 'San Jorge' },
-  { name: 'Dr. Roberto', email: 'roberto@farmacia.com', role: 'Comercio', scope: 'Farmacia Central', status: 'active', loc: 'Sastre' }
+  { id: 'u1', name: 'Sistema Principal', email: 'admin@dcompras.com', role: 'Super Admin', scope: 'Global', status: 'active', loc: 'Todas' },
+  { id: 'u2', name: 'Juan Pérez', email: 'juan@sastre.com', role: 'Admin Local', scope: 'Localidad', status: 'active', loc: 'Sastre' },
+  { id: 'u3', name: 'María Gómez', email: 'maria@sanjorge.com', role: 'Admin Local', scope: 'Localidad', status: 'active', loc: 'San Jorge' },
+  { id: 'u4', name: 'Carlos D.', email: 'carlos@pizzeria.com', role: 'Comercio', scope: 'Pizzería Roma', status: 'active', loc: 'Sastre' },
+  { id: 'u5', name: 'Ana L.', email: 'ana@tienda.com', role: 'Comercio', scope: 'Tienda Mía', status: 'pending', loc: 'San Jorge' },
+  { id: 'u6', name: 'Dr. Roberto', email: 'roberto@farmacia.com', role: 'Comercio', scope: 'Farmacia Central', status: 'active', loc: 'Sastre' }
 ];
+
 
 function App() {
   const [view, setView] = useState('loading');
@@ -631,11 +632,29 @@ function App() {
 
   // Persistir favoritos
   const [usersList, setUsersList] = useState(usersData);
+  const [editingUser, setEditingUser] = useState(null);
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserRoleChoice, setNewUserRoleChoice] = useState('commerce');
   const [newUserLocalityId, setNewUserLocalityId] = useState('');
   const [newUserCommerceId, setNewUserCommerceId] = useState('');
+
+  const handleEditUserAccess = (user) => {
+    setEditingUser(user);
+    setNewUserName(user.name || '');
+    setNewUserEmail(user.email || '');
+    setNewUserRoleChoice(user.role === 'Super Admin' ? 'super' : user.role === 'Admin Local' ? 'local' : 'commerce');
+    setNewUserLocalityId(user.locality_id || '');
+    setNewUserCommerceId(user.commerce_id || '');
+    setShowUserModal(true);
+  };
+
+  const handleDeleteUserAccess = (userId) => {
+    if (!window.confirm('¿Estás seguro de eliminar este acceso?')) return;
+    setUsersList(prev => prev.filter(u => u.id !== userId));
+    setShowUserModal(false);
+    setEditingUser(null);
+  };
 
   const handleSaveUserAccess = () => {
     if (!newUserName.trim() || !newUserEmail.trim()) {
@@ -665,16 +684,32 @@ function App() {
       loc = selectedLocForCom ? selectedLocForCom.name : 'Varios';
     }
 
-    const newUser = {
-      name: newUserName,
-      email: newUserEmail,
-      role: newUserRoleChoice === 'super' ? 'Super Admin' : newUserRoleChoice === 'local' ? 'Admin Local' : 'Comercio',
-      scope,
-      status: 'active',
-      loc
-    };
-
-    setUsersList(prev => [newUser, ...prev]);
+    if (editingUser) {
+      setUsersList(prev => prev.map(u => u.id === editingUser.id ? {
+        ...u,
+        name: newUserName,
+        email: newUserEmail,
+        role: newUserRoleChoice === 'super' ? 'Super Admin' : newUserRoleChoice === 'local' ? 'Admin Local' : 'Comercio',
+        scope,
+        loc,
+        locality_id: newUserLocalityId,
+        commerce_id: newUserCommerceId
+      } : u));
+      setEditingUser(null);
+    } else {
+      const newUser = {
+        id: Date.now().toString(),
+        name: newUserName,
+        email: newUserEmail,
+        role: newUserRoleChoice === 'super' ? 'Super Admin' : newUserRoleChoice === 'local' ? 'Admin Local' : 'Comercio',
+        scope,
+        status: 'active',
+        loc,
+        locality_id: newUserLocalityId,
+        commerce_id: newUserCommerceId
+      };
+      setUsersList(prev => [newUser, ...prev]);
+    }
 
     // Reset fields & close modal
     setNewUserName('');
@@ -684,7 +719,7 @@ function App() {
     setNewUserCommerceId('');
     setShowUserModal(false);
 
-    alert('Credenciales de acceso enviadas correctamente.');
+    alert('Credenciales de acceso guardadas correctamente.');
   };
 
   useEffect(() => {
@@ -1304,9 +1339,9 @@ function App() {
                       <div>
                         <label style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '6px', display: 'block' }}>Estado de la Localidad</label>
                         <select value={newLocStatus} onChange={e => setNewLocStatus(e.target.value)} style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none', colorScheme: isDark ? 'dark' : 'light' }}>
-                           <option value="active" style={{ color: isDark ? '#000' : 'inherit' }}>Operativa (Visible en App)</option>
-                           <option value="pending" style={{ color: isDark ? '#000' : 'inherit' }}>Pendiente (Oculta)</option>
-                           <option value="inactive" style={{ color: isDark ? '#000' : 'inherit' }}>Inactiva (Oculta)</option>
+                          <option value="active" style={{ color: isDark ? '#000' : 'inherit' }}>Operativa (Visible en App)</option>
+                          <option value="pending" style={{ color: isDark ? '#000' : 'inherit' }}>Pendiente (Oculta)</option>
+                          <option value="inactive" style={{ color: isDark ? '#000' : 'inherit' }}>Inactiva (Oculta)</option>
                         </select>
                       </div>
                       <div style={{ height: '1px', background: isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0', margin: '10px 0' }}></div>
@@ -1681,7 +1716,15 @@ function App() {
               <section className="table-section animate-in" style={{ animationDelay: '0.3s' }}>
                 <div className="table-header">
                   <h3 className="font-outfit">Gestión de Accesos y Usuarios</h3>
-                  <button className="btn-add" onClick={() => setShowUserModal(true)}>
+                  <button className="btn-add" onClick={() => {
+                    setEditingUser(null);
+                    setNewUserName('');
+                    setNewUserEmail('');
+                    setNewUserRoleChoice('commerce');
+                    setNewUserLocalityId('');
+                    setNewUserCommerceId('');
+                    setShowUserModal(true);
+                  }}>
                     <UserPlus size={18} /> Nuevo Acceso
                   </button>
                 </div>
@@ -1695,7 +1738,7 @@ function App() {
                           <td><span className={`badge ${item.role === 'Super Admin' ? 'badge-pink' : item.role === 'Admin Local' ? 'badge-indigo' : 'badge-emerald'}`}>{item.role}</span></td>
                           <td style={{ color: isDark ? '#e2e8f0' : '#1e293b', fontWeight: 500 }}>{item.scope}</td>
                           <td><div className={`status ${item.status === 'active' ? 'active' : 'pending'}`}><span className={`status-dot ${item.status === 'active' ? 'active' : 'pending'}`}></span>{item.status === 'active' ? 'Activo' : 'Pendiente'}</div></td>
-                          <td style={{ textAlign: 'right' }}><button className="edit-btn">Configurar</button></td>
+                          <td style={{ textAlign: 'right' }}><button className="edit-btn" onClick={() => handleEditUserAccess(item)}>Configurar</button></td>
                         </tr>
                       ))}
                     </tbody>
@@ -1708,7 +1751,7 @@ function App() {
                 <div className="gallery-modal" style={{ justifyContent: 'center', alignItems: 'center' }}>
                   <div style={{ background: isDark ? '#0f172a' : '#ffffff', padding: '32px', borderRadius: '24px', width: '100%', maxWidth: '500px', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}`, boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
                     <div className="gallery-header" style={{ marginBottom: '20px' }}>
-                      <h3 className="font-outfit" style={{ color: isDark ? '#fff' : '#0f172a' }}>Otorgar Acceso</h3>
+                      <h3 className="font-outfit" style={{ color: isDark ? '#fff' : '#0f172a' }}>{editingUser ? 'Configurar Acceso' : 'Otorgar Acceso'}</h3>
                       <div className="close-gallery" onClick={() => setShowUserModal(false)}><X size={24} /></div>
                     </div>
 
@@ -1767,9 +1810,16 @@ function App() {
                         </div>
                       </div>
 
-                      <button onClick={handleSaveUserAccess} className="action-btn primary" style={{ marginTop: '10px', padding: '14px', fontSize: '0.9rem' }}>
-                        Enviar Credenciales de Acceso
-                      </button>
+                      <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
+                        {editingUser && (
+                          <button onClick={() => handleDeleteUserAccess(editingUser.id)} className="action-btn" style={{ flex: 1, padding: '14px', fontSize: '0.9rem', background: '#ef4444', color: '#fff', border: 'none' }}>
+                            Eliminar
+                          </button>
+                        )}
+                        <button onClick={handleSaveUserAccess} className="action-btn primary" style={{ flex: 2, padding: '14px', fontSize: '0.9rem' }}>
+                          {editingUser ? 'Guardar Cambios' : 'Enviar Credenciales de Acceso'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
