@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
 import {
   LayoutDashboard, MapPin, Tags, Store, Users, Bell, Search, Plus, TrendingUp,
-  ArrowUpRight, Settings, LogOut, Sun, Moon, ShieldCheck, Building, Home, Heart,
+  ArrowUpRight, Settings, LogOut, LogIn, Sun, Moon, ShieldCheck, Building, Home, Heart,
   MessageCircle, Navigation, Utensils, Smartphone, Stethoscope, ShoppingBag, Star,
   X, Camera, CreditCard, DollarSign, AlertCircle, Map, UserPlus, MoreVertical,
   Briefcase, ShoppingCart, Gamepad2, Headset, ShieldAlert,
-  Globe, Link as LinkIcon
+  Globe, Link as LinkIcon, Palette, Save, Trash2, Edit3, CheckCircle, Menu, Eye, EyeOff
 } from 'lucide-react';
 
 // --- MOCK DATA ---
@@ -80,14 +81,26 @@ function App() {
   const [selectedBusiness, setSelectedBusiness] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPublicRubroId, setSelectedPublicRubroId] = useState(null);
+  const [adminComerciosSearch, setAdminComerciosSearch] = useState('');
+  const [adminPagosSearch, setAdminPagosSearch] = useState('');
+  const [collapsedLocalities, setCollapsedLocalities] = useState({});
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const toggleLocalityCollapse = (locId) => {
+    setCollapsedLocalities(prev => ({ ...prev, [locId]: !prev[locId] }));
+  };
 
   // Estados de Auth
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [showPassLocAdmin, setShowPassLocAdmin] = useState(false);
+  const [showPassUser, setShowPassUser] = useState(false);
+  const [showPassLogin, setShowPassLogin] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [assignedLocalityId, setAssignedLocalityId] = useState(null);
+  const [assignedCommerceId, setAssignedCommerceId] = useState(null);
 
   // Datos reales de Supabase
   const [localities, setLocalities] = useState([]);
@@ -103,6 +116,9 @@ function App() {
   const [newLocPharmaciesLink, setNewLocPharmaciesLink] = useState('');
   const [newLocWhatsapp, setNewLocWhatsapp] = useState('');
   const [newLocAdminWhatsapp, setNewLocAdminWhatsapp] = useState('');
+  const [newLocAdminName, setNewLocAdminName] = useState('');
+  const [newLocAdminEmail, setNewLocAdminEmail] = useState('');
+  const [newLocAdminPassword, setNewLocAdminPassword] = useState('');
   const [newLocCommission, setNewLocCommission] = useState(20);
   const [locWeatherType, setLocWeatherType] = useState('url');
   const [locSatelliteType, setLocSatelliteType] = useState('url');
@@ -143,6 +159,7 @@ function App() {
   const [newComDescription, setNewComDescription] = useState('');
   const [newComInstagram, setNewComInstagram] = useState('');
   const [newComFacebook, setNewComFacebook] = useState('');
+  const [newComWebsite, setNewComWebsite] = useState('');
 
   // Estados para Facturación
   const [planes, setPlanes] = useState([]);
@@ -188,7 +205,7 @@ function App() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) checkUserProfile(session.user.id);
-      else { setView('login'); setAuthLoading(false); }
+      else { setView('public'); setAuthLoading(false); }
     });
 
     // Escuchar cambios de autenticación
@@ -197,7 +214,7 @@ function App() {
       if (session) checkUserProfile(session.user.id);
       else {
         setUserRole(null);
-        setView('login');
+        setView('public');
         setAuthLoading(false);
       }
     });
@@ -208,6 +225,7 @@ function App() {
     fetchPlanes();
     fetchPagos();
     fetchPreciosPlanes();
+    fetchUsersList();
   }, []);
 
   const handleEditPrices = (loc) => {
@@ -251,11 +269,17 @@ function App() {
     if (data) {
       setUserRole(data.role || 'admin');
       setAssignedLocalityId(data.locality_id);
+      setAssignedCommerceId(data.commerce_id);
+      if (data.role === 'commerce') {
+        setActiveTab('comercios');
+      }
+      setView('admin');
     } else {
-      // Si no hay datos (o hay error), asumimos superadmin como fallback
-      setUserRole('superadmin');
+      // Si el usuario está en Auth pero no tiene Perfil registrado, lo sacamos por seguridad
+      console.error('El usuario no posee perfil asociado.');
+      setUserRole(null);
+      setView('login');
     }
-    setView('admin');
     setAuthLoading(false);
   };
 
@@ -297,6 +321,40 @@ function App() {
       setLocalities(data || []);
     }
     setIsLoading(false);
+  };
+
+  const fetchUsersList = async () => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*, localidades(name), comercios(name)');
+    if (data) {
+      const formatted = data.map(p => {
+        let roleLabel = 'Comercio';
+        if (p.role === 'superadmin') roleLabel = 'Super Admin';
+        else if (p.role === 'localadmin') roleLabel = 'Admin Local';
+
+        let scopeLabel = 'Global';
+        if (p.role === 'localadmin') {
+          scopeLabel = p.localidades?.name || 'Localidad';
+        } else if (p.role === 'commerce') {
+          scopeLabel = p.comercios?.name || 'Comercio';
+        }
+
+        return {
+          id: p.id,
+          name: p.full_name || 'Sin Nombre',
+          email: p.email || '-',
+          role: roleLabel,
+          scope: scopeLabel,
+          status: p.status || 'active',
+          loc: p.localidades?.name || 'Todas',
+          locality_id: p.locality_id,
+          commerce_id: p.commerce_id,
+          has_extended_permissions: !!p.has_extended_permissions
+        };
+      });
+      setUsersList(formatted);
+    }
   };
 
   const fetchPreciosPlanes = async () => {
@@ -391,29 +449,92 @@ function App() {
     if (!newLocName.trim() || !newLocProv.trim()) return;
     setIsSavingLoc(true);
 
-    const payload = {
-      name: newLocName,
-      province: newLocProv,
-      status: newLocStatus,
-      weather_link: newLocWeatherLink,
-      satellite_link: newLocSatelliteLink,
-      pharmacies_link: newLocPharmaciesLink,
-      contact_whatsapp: newLocWhatsapp,
-      admin_whatsapp: newLocAdminWhatsapp,
-      commission_percentage: newLocCommission
-    };
+    try {
+      // Robust UUID generator fallback just in case browser lacks crypto.randomUUID in insecure context
+      const generateUUID = () => {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0;
+          const v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
 
-    let query;
-    if (editingLocalityId) {
-      query = supabase.from('localidades').update(payload).eq('id', editingLocalityId);
-    } else {
-      query = supabase.from('localidades').insert([payload]);
-    }
+      const localityId = editingLocalityId || generateUUID();
+      
+      const payload = {
+        id: localityId,
+        name: newLocName,
+        province: newLocProv,
+        status: newLocStatus,
+        weather_link: newLocWeatherLink,
+        satellite_link: newLocSatelliteLink,
+        pharmacies_link: newLocPharmaciesLink,
+        contact_whatsapp: newLocWhatsapp,
+        admin_whatsapp: newLocAdminWhatsapp,
+        commission_percentage: newLocCommission
+      };
 
-    const { error } = await query;
-    setIsSavingLoc(false);
+      let query;
+      if (editingLocalityId) {
+        query = supabase.from('localidades').update(payload).eq('id', editingLocalityId);
+      } else {
+        query = supabase.from('localidades').insert([payload]);
+      }
 
-    if (!error) {
+      const { error: locError } = await query;
+      if (locError) throw locError;
+
+      // Logic for admin profile
+      if (newLocAdminName.trim() && newLocAdminEmail.trim()) {
+        let authUserId = null;
+        if (newLocAdminPassword.trim()) {
+          const tempSupabase = createClient(
+            import.meta.env.VITE_SUPABASE_URL,
+            import.meta.env.VITE_SUPABASE_ANON_KEY,
+            { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
+          );
+          const { data: authData, error: authError } = await tempSupabase.auth.signUp({
+            email: newLocAdminEmail,
+            password: newLocAdminPassword,
+            options: { data: { full_name: newLocAdminName } }
+          });
+          if (authError) {
+            console.warn('Admin account not created:', authError.message);
+          } else if (authData && authData.user) {
+            authUserId = authData.user.id;
+          }
+        }
+
+        const adminPayload = {
+          full_name: newLocAdminName,
+          email: newLocAdminEmail,
+          role: 'localadmin',
+          locality_id: localityId,
+          status: 'active'
+        };
+        if (authUserId) {
+          adminPayload.id = authUserId;
+        }
+
+        const { data: existingAdmin, error: findError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('locality_id', localityId)
+          .eq('role', 'localadmin')
+          .maybeSingle();
+
+        if (!findError) {
+          if (existingAdmin) {
+            await supabase.from('profiles').update(adminPayload).eq('id', existingAdmin.id);
+          } else {
+            await supabase.from('profiles').insert([adminPayload]);
+          }
+        }
+      }
+
+      // All operations successful
+      alert(editingLocalityId ? '¡Localidad actualizada con éxito!' : '¡Localidad creada con éxito!');
       setShowLocalityModal(false);
       setEditingLocalityId(null);
       setNewLocName('');
@@ -424,10 +545,18 @@ function App() {
       setNewLocPharmaciesLink('');
       setNewLocWhatsapp('');
       setNewLocAdminWhatsapp('');
-      fetchLocalities();
-    } else {
-      console.error('Error guardando:', error);
-      alert('Hubo un error al guardar la localidad.');
+      setNewLocAdminName('');
+      setNewLocAdminEmail('');
+      setNewLocAdminPassword('');
+      
+      await fetchLocalities();
+      await fetchUsersList();
+
+    } catch (error) {
+      console.error('Error in handleSaveLocality:', error);
+      alert('Error al guardar los datos: ' + (error.message || 'Verifique los campos e intente nuevamente.'));
+    } finally {
+      setIsSavingLoc(false);
     }
   };
 
@@ -445,6 +574,15 @@ function App() {
     setNewLocWhatsapp(loc.contact_whatsapp || '');
     setNewLocAdminWhatsapp(loc.admin_whatsapp || '');
     setNewLocCommission(loc.commission_percentage || 20);
+
+    const manager = usersList.find(u => u.locality_id === loc.id && u.role === 'Admin Local');
+    if (manager) {
+      setNewLocAdminName(manager.name);
+      setNewLocAdminEmail(manager.email);
+    } else {
+      setNewLocAdminName('');
+      setNewLocAdminEmail('');
+    }
     setShowLocalityModal(true);
   };
 
@@ -536,7 +674,8 @@ function App() {
       business_hours: newComHours,
       description: newComDescription,
       instagram_url: newComInstagram,
-      facebook_url: newComFacebook
+      facebook_url: newComFacebook,
+      website_url: newComWebsite
     };
 
     if (imageUrl) payload.main_image = imageUrl;
@@ -559,6 +698,7 @@ function App() {
       setNewComDescription('');
       setNewComInstagram('');
       setNewComFacebook('');
+      setNewComWebsite('');
       setNewComMainImageFile(null);
       setNewComMainImagePreview(null);
       setGalleryItems([]);
@@ -567,6 +707,62 @@ function App() {
     } else {
       console.error('Error guardando comercio:', error);
       alert('Hubo un error al guardar el comercio.');
+    }
+  };
+
+  const handleDeleteCommerce = async (commerce) => {
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar definitivamente el comercio "${commerce.name}"? Esta acción no se puede deshacer y borrará todas sus imágenes asociadas.`)) {
+      return;
+    }
+
+    try {
+      // 1. Identificar archivos a eliminar del storage
+      const filesToDelete = [];
+      const getPathFromUrl = (url) => {
+        if (!url || typeof url !== 'string') return null;
+        const marker = '/public/comercios/';
+        const index = url.indexOf(marker);
+        if (index !== -1) {
+          return decodeURI(url.substring(index + marker.length));
+        }
+        return null;
+      };
+
+      if (commerce.main_image) {
+        const path = getPathFromUrl(commerce.main_image);
+        if (path) filesToDelete.push(path);
+      }
+
+      if (commerce.gallery_images && Array.isArray(commerce.gallery_images)) {
+        commerce.gallery_images.forEach(url => {
+          const path = getPathFromUrl(url);
+          if (path) filesToDelete.push(path);
+        });
+      }
+
+      // 2. Eliminar archivos de storage si existen
+      if (filesToDelete.length > 0) {
+        const { error: storageError } = await supabase.storage
+          .from('comercios')
+          .remove(filesToDelete);
+        if (storageError) {
+          console.error("Error eliminando imágenes del storage:", storageError);
+        }
+      }
+
+      // 3. Eliminar el registro de la base de datos (se encarga de cascada para pagos y profiles)
+      const { error } = await supabase
+        .from('comercios')
+        .delete()
+        .eq('id', commerce.id);
+
+      if (error) throw error;
+
+      alert('Comercio eliminado con éxito.');
+      fetchComercios();
+    } catch (err) {
+      console.error('Error al eliminar comercio:', err);
+      alert('Error al eliminar el comercio: ' + err.message);
     }
   };
 
@@ -590,28 +786,35 @@ function App() {
   };
 
   const handleEditCommerceClick = (commerce) => {
-    setEditingCommerceId(commerce.id);
-    setNewComName(commerce.name);
-    setNewComLocalityId(commerce.locality_id);
-    setNewComRubroId(commerce.rubro_id);
-    setNewComWhatsapp(commerce.whatsapp || '');
-    setNewComAddress(commerce.address || '');
-    setNewComMapsUrl(commerce.maps_url || '');
-    setNewComMainImagePreview(commerce.main_image || null);
-    setNewComDescription(commerce.description || '');
-    setNewComInstagram(commerce.instagram_url || '');
-    setNewComFacebook(commerce.facebook_url || '');
-    setNewComHours(commerce.business_hours || {
-      mon: { open: '08:00', close: '12:00', open2: '16:00', close2: '20:00', active: true },
-      tue: { open: '08:00', close: '12:00', open2: '16:00', close2: '20:00', active: true },
-      wed: { open: '08:00', close: '12:00', open2: '16:00', close2: '20:00', active: true },
-      thu: { open: '08:00', close: '12:00', open2: '16:00', close2: '20:00', active: true },
-      fri: { open: '08:00', close: '12:00', open2: '16:00', close2: '20:00', active: true },
-      sat: { open: '08:00', close: '13:00', open2: '', close2: '', active: true },
-      sun: { open: '', close: '', open2: '', close2: '', active: false },
-    });
-    setGalleryItems((commerce.gallery_images || []).map(url => ({ url, file: null })));
-    setShowCommerceModal(true);
+    try {
+      setActiveTab('comercios');
+      setEditingCommerceId(commerce.id);
+      setNewComName(commerce.name);
+      setNewComLocalityId(commerce.locality_id);
+      setNewComRubroId(commerce.rubro_id);
+      setNewComWhatsapp(commerce.whatsapp || '');
+      setNewComAddress(commerce.address || '');
+      setNewComMapsUrl(commerce.maps_url || '');
+      setNewComMainImagePreview(commerce.main_image || null);
+      setNewComDescription(commerce.description || '');
+      setNewComInstagram(commerce.instagram_url || '');
+      setNewComFacebook(commerce.facebook_url || '');
+      setNewComWebsite(commerce.website_url || '');
+      setNewComHours(commerce.business_hours || {
+        mon: { open: '08:00', close: '12:00', open2: '16:00', close2: '20:00', active: true },
+        tue: { open: '08:00', close: '12:00', open2: '16:00', close2: '20:00', active: true },
+        wed: { open: '08:00', close: '12:00', open2: '16:00', close2: '20:00', active: true },
+        thu: { open: '08:00', close: '12:00', open2: '16:00', close2: '20:00', active: true },
+        fri: { open: '08:00', close: '12:00', open2: '16:00', close2: '20:00', active: true },
+        sat: { open: '08:00', close: '13:00', open2: '', close2: '', active: true },
+        sun: { open: '', close: '', open2: '', close2: '', active: false },
+      });
+      setGalleryItems((commerce.gallery_images || []).map(url => ({ url, file: null })));
+      setShowCommerceModal(true);
+    } catch (err) {
+      alert("Debug: Error en handleEditCommerceClick -> " + err.message);
+      console.error(err);
+    }
   };
 
   // Modals
@@ -635,6 +838,7 @@ function App() {
   const [editingUser, setEditingUser] = useState(null);
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserRoleChoice, setNewUserRoleChoice] = useState('commerce');
   const [newUserLocalityId, setNewUserLocalityId] = useState('');
   const [newUserCommerceId, setNewUserCommerceId] = useState('');
@@ -649,77 +853,81 @@ function App() {
     setShowUserModal(true);
   };
 
-  const handleDeleteUserAccess = (userId) => {
+  const handleDeleteUserAccess = async (userId) => {
     if (!window.confirm('¿Estás seguro de eliminar este acceso?')) return;
-    setUsersList(prev => prev.filter(u => u.id !== userId));
-    setShowUserModal(false);
-    setEditingUser(null);
+    const { error } = await supabase.from('profiles').delete().eq('id', userId);
+    if (error) {
+      alert('Error eliminando acceso: ' + error.message);
+    } else {
+      fetchUsersList();
+      setShowUserModal(false);
+      setEditingUser(null);
+    }
   };
 
-  const handleSaveUserAccess = () => {
+  const handleSaveUserAccess = async () => {
     if (!newUserName.trim() || !newUserEmail.trim()) {
       alert('Por favor completa el nombre y el correo.');
       return;
     }
 
-    let scope = 'Global';
-    let loc = 'Todas';
-
-    if (newUserRoleChoice === 'local') {
-      const selectedLoc = localities.find(l => l.id == newUserLocalityId);
-      if (!selectedLoc) {
-        alert('Por favor selecciona una localidad.');
+    let authUserId = null;
+    if (!editingUser && newUserPassword.trim()) {
+      const tempSupabase = createClient(
+        import.meta.env.VITE_SUPABASE_URL,
+        import.meta.env.VITE_SUPABASE_ANON_KEY,
+        { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
+      );
+      const { data: authData, error: authError } = await tempSupabase.auth.signUp({
+        email: newUserEmail,
+        password: newUserPassword,
+        options: { data: { full_name: newUserName } }
+      });
+      if (authError) {
+        console.error('Error al crear usuario en Supabase Auth:', authError);
+        alert('Error creando cuenta de acceso: ' + authError.message);
         return;
       }
-      scope = 'Localidad';
-      loc = selectedLoc.name;
-    } else if (newUserRoleChoice === 'commerce') {
-      const selectedCom = comercios.find(c => c.id == newUserCommerceId);
-      if (!selectedCom) {
-        alert('Por favor selecciona un comercio.');
-        return;
+      if (authData && authData.user) {
+        authUserId = authData.user.id;
       }
-      scope = selectedCom.name;
-      const selectedLocForCom = localities.find(l => l.id == selectedCom.locality_id);
-      loc = selectedLocForCom ? selectedLocForCom.name : 'Varios';
     }
 
-    if (editingUser) {
-      setUsersList(prev => prev.map(u => u.id === editingUser.id ? {
-        ...u,
-        name: newUserName,
-        email: newUserEmail,
-        role: newUserRoleChoice === 'super' ? 'Super Admin' : newUserRoleChoice === 'local' ? 'Admin Local' : 'Comercio',
-        scope,
-        loc,
-        locality_id: newUserLocalityId,
-        commerce_id: newUserCommerceId
-      } : u));
-      setEditingUser(null);
+    const payload = {
+      full_name: newUserName,
+      email: newUserEmail,
+      role: newUserRoleChoice === 'super' ? 'superadmin' : newUserRoleChoice === 'local' ? 'localadmin' : 'commerce',
+      locality_id: newUserRoleChoice === 'local' ? newUserLocalityId || null : null,
+      commerce_id: newUserRoleChoice === 'commerce' ? newUserCommerceId || null : null,
+      status: 'active'
+    };
+    if (authUserId) {
+      payload.id = authUserId;
+    }
+
+    let query;
+    if (editingUser && editingUser.id && !editingUser.id.startsWith('u')) {
+      query = supabase.from('profiles').update(payload).eq('id', editingUser.id);
     } else {
-      const newUser = {
-        id: Date.now().toString(),
-        name: newUserName,
-        email: newUserEmail,
-        role: newUserRoleChoice === 'super' ? 'Super Admin' : newUserRoleChoice === 'local' ? 'Admin Local' : 'Comercio',
-        scope,
-        status: 'active',
-        loc,
-        locality_id: newUserLocalityId,
-        commerce_id: newUserCommerceId
-      };
-      setUsersList(prev => [newUser, ...prev]);
+      query = supabase.from('profiles').insert([payload]);
     }
 
-    // Reset fields & close modal
-    setNewUserName('');
-    setNewUserEmail('');
-    setNewUserRoleChoice('commerce');
-    setNewUserLocalityId('');
-    setNewUserCommerceId('');
-    setShowUserModal(false);
-
-    alert('Credenciales de acceso guardadas correctamente.');
+    const { error } = await query;
+    if (error) {
+      console.error('Error guardando acceso:', error);
+      alert('Hubo un error al guardar el acceso: ' + error.message);
+    } else {
+      setShowUserModal(false);
+      setEditingUser(null);
+      setNewUserName('');
+      setNewUserEmail('');
+      setNewUserPassword('');
+      setNewUserRoleChoice('commerce');
+      setNewUserLocalityId('');
+      setNewUserCommerceId('');
+      fetchUsersList();
+      alert('Acceso guardado correctamente en la base de datos.');
+    }
   };
 
   useEffect(() => {
@@ -743,6 +951,10 @@ function App() {
 
     if (!schedule || !schedule.active) return { open: false, label: 'Cerrado' };
 
+    // Smart detection for 24-hour operation (explicit 00:00 - 00:00 or 00:00 - 23:59)
+    const is24hs = (schedule.open === '00:00' && (schedule.close === '00:00' || schedule.close === '23:59'));
+    if (is24hs) return { open: true, label: 'Abierto 24h' };
+
     const currentTime = now.getHours() * 100 + now.getMinutes();
 
     const checkRange = (start, end) => {
@@ -762,51 +974,75 @@ function App() {
     }
   }, [view, publicLocalityId, localities.length]);
 
-  const assignedLocality = 'Sastre'; // Admin hardcode fallback
+  const assignedLocality = localities.find(l => l.id === assignedLocalityId)?.name || (userRole === 'commerce' ? 'Comercio' : 'Central');
+  const assignedCommerce = comercios.find(c => c.id === assignedCommerceId);
   const toggleTheme = () => setIsDark(prev => !prev);
-
-
 
   // --- ADMIN VIEW ---
   const renderAdmin = () => {
     const navItems = [
       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['superadmin', 'localadmin'] },
+      { id: 'comercios', label: userRole === 'commerce' ? 'Mi Comercio' : 'Comercios', icon: Store, roles: ['superadmin', 'localadmin', 'commerce'] },
       { id: 'pagos', label: 'Facturación', icon: CreditCard, roles: ['superadmin', 'localadmin'] },
       { id: 'localidades', label: 'Localidades', icon: MapPin, roles: ['superadmin'] },
       { id: 'rubros', label: 'Rubros', icon: Tags, roles: ['superadmin', 'localadmin'] },
-      { id: 'comercios', label: 'Comercios', icon: Store, roles: ['superadmin', 'localadmin'] },
       { id: 'usuarios', label: 'Accesos', icon: Users, roles: ['superadmin', 'localadmin'] },
+      { id: 'metrics', label: 'Métricas e informes', icon: TrendingUp, roles: ['localadmin'] },
+      { id: 'planes_local', label: 'Planes', icon: CreditCard, roles: ['localadmin'] },
     ].filter(item => item.roles.includes(userRole));
 
-    const filteredCommerce = userRole === 'superadmin' ? commerceData.slice(0, 5) : commerceData.filter(c => c.loc === assignedLocality);
+    const filteredCommerce = userRole === 'superadmin' ? comercios : 
+                             userRole === 'commerce' ? comercios.filter(c => c.id === assignedCommerceId) :
+                             comercios.filter(c => c.locality_id === assignedLocalityId);
+
+    const displayUsers = userRole === 'superadmin' ? usersList : usersList.filter(u => {
+      if (u.role !== 'Comercio') return false;
+      const userCommerce = comercios.find(c => c.id === u.commerce_id);
+      return userCommerce?.locality_id === assignedLocalityId;
+    });
+
+    const countAdmins = userRole === 'superadmin' 
+      ? usersList.filter(u => u.role === 'Super Admin' || u.role === 'Admin Local').length 
+      : 1;
+    const countCommerces = displayUsers.filter(u => u.role === 'Comercio').length;
+    const countExtended = displayUsers.filter(u => u.has_extended_permissions).length;
 
     return (
       <div className={`app-layout ${!isDark ? 'light-theme' : ''}`}>
-        <aside className="sidebar">
-          <div className="sidebar-logo" style={{ display: 'flex', justifyContent: 'center', padding: '15px 0' }}>
-            <img src="/logo.png" alt="D'Compras Logo" style={{ maxWidth: '100%', height: '120px', objectFit: 'contain' }} />
+        {isMobileMenuOpen && <div className="sidebar-overlay" onClick={() => setIsMobileMenuOpen(false)}></div>}
+        <aside className={`sidebar ${isMobileMenuOpen ? 'open' : ''}`}>
+          <div className="sidebar-logo" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 20px' }}>
+            <img src="/logo.png" alt="D'Compras Logo" style={{ maxWidth: '80%', height: '80px', objectFit: 'contain' }} />
+            <div className="mobile-close-btn" onClick={() => setIsMobileMenuOpen(false)}><X size={24} /></div>
           </div>
           <nav className="sidebar-nav">
-            <div className="sidebar-section-title">{userRole === 'superadmin' ? 'Principal (Maestro)' : `Gestión Local: ${assignedLocality}`}</div>
+            <div className="sidebar-section-title">
+              {userRole === 'superadmin' ? 'Principal (Maestro)' : userRole === 'commerce' ? 'Gestión de Negocio' : `Gestión Local: ${assignedLocality}`}
+            </div>
             {navItems.map((item) => (
-              <div key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => setActiveTab(item.id)}>
+              <div key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }}>
                 <item.icon /><span>{item.label}</span>
               </div>
             ))}
-            <div className="sidebar-section-title">Sistema</div>
-            <div className="nav-item"><Settings /><span>Configuración</span></div>
+            {userRole === 'superadmin' && (
+              <>
+                <div className="sidebar-section-title">Sistema</div>
+                <div className={`nav-item ${activeTab === 'configuracion' ? 'active' : ''}`} onClick={() => { setActiveTab('configuracion'); setIsMobileMenuOpen(false); }}><Settings /><span>Configuración</span></div>
+              </>
+            )}
           </nav>
         </aside>
 
         <main className="main-content">
           <header className="header">
             <div className="header-left">
+              <button className="hamburger-btn" onClick={() => setIsMobileMenuOpen(true)}><Menu size={24} /></button>
               <div className="role-badge">
-                {userRole === 'superadmin' ? <ShieldCheck size={14} /> : <Building size={14} />}
-                {userRole === 'superadmin' ? 'Control Total' : `Admin Local: ${assignedLocality}`}
+                {userRole === 'superadmin' ? <ShieldCheck size={14} /> : userRole === 'commerce' ? <Store size={14} /> : <Building size={14} />}
+                {userRole === 'superadmin' ? 'Control Total' : userRole === 'commerce' ? 'Comercio' : `Admin Local: ${assignedLocality}`}
               </div>
               <h2 className="font-outfit">
-                {userRole === 'superadmin' ? 'Panel de Control Maestro' : `Panel de Gestión: ${assignedLocality}`}
+                {userRole === 'superadmin' ? 'Panel de Control Maestro' : userRole === 'commerce' ? (assignedCommerce?.name || 'Mi Comercio') : `Panel de Gestión: ${assignedLocality}`}
               </h2>
             </div>
             <div className="header-right">
@@ -827,8 +1063,8 @@ function App() {
             <>
               <div className="stats-grid">
                 <div className="stat-card animate-in"><div className="stat-card-header"><div className="stat-icon indigo"><Store size={22} /></div></div><div className="stat-label">Comercios {userRole === 'localadmin' ? 'Locales' : 'Globales'}</div><div className="stat-value">{filteredCommerce.length}</div></div>
-                <div className="stat-card animate-in" style={{ animationDelay: '0.1s' }}><div className="stat-card-header"><div className="stat-icon emerald"><MapPin size={22} /></div></div><div className="stat-label">{userRole === 'localadmin' ? 'Estado Zona' : 'Localidades'}</div><div className="stat-value">{userRole === 'localadmin' ? 'Activo' : '12'}</div></div>
-                <div className="stat-card animate-in" style={{ animationDelay: '0.2s' }}><div className="stat-card-header"><div className="stat-icon pink"><Users size={22} /></div></div><div className="stat-label">Usuarios</div><div className="stat-value">{userRole === 'localadmin' ? '412' : '5,890'}</div></div>
+                <div className="stat-card animate-in" style={{ animationDelay: '0.1s' }}><div className="stat-card-header"><div className="stat-icon emerald"><MapPin size={22} /></div></div><div className="stat-label">{userRole === 'localadmin' ? 'Estado Zona' : 'Localidades'}</div><div className="stat-value">{userRole === 'localadmin' ? 'Activo' : localities.length}</div></div>
+                <div className="stat-card animate-in" style={{ animationDelay: '0.2s' }}><div className="stat-card-header"><div className="stat-icon pink"><Users size={22} /></div></div><div className="stat-label">Usuarios</div><div className="stat-value">{displayUsers.length.toLocaleString()}</div></div>
               </div>
 
               <section className="table-section animate-in" style={{ animationDelay: '0.4s' }}>
@@ -840,10 +1076,14 @@ function App() {
                     setActiveTab('comercios');
                     setEditingCommerceId(null);
                     setNewComName('');
-                    setNewComLocalityId('');
+                    setNewComLocalityId(userRole === 'localadmin' ? assignedLocalityId : '');
                     setNewComRubroId('');
                     setNewComWhatsapp('');
                     setNewComAddress('');
+                    setNewComInstagram('');
+                    setNewComFacebook('');
+                    setNewComWebsite('');
+                    setNewComDescription('');
                     setNewComMainImagePreview(null);
                     setNewComMainImageFile(null);
                     setGalleryItems([]);
@@ -856,15 +1096,24 @@ function App() {
                   <table className="data-table">
                     <thead><tr><th>Comercio</th>{userRole === 'superadmin' && <th>Localidad</th>}<th>Rubro</th><th>Vencimiento</th><th>Estado</th><th style={{ textAlign: 'right' }}>Acciones</th></tr></thead>
                     <tbody>
-                      {filteredCommerce.map((item, i) => (
-                        <tr key={i}>
+                      {[...filteredCommerce]
+                        .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+                        .slice(0, 5)
+                        .map((item, i) => (
+                        <tr key={item.id || i}>
                           <td className="commerce-name">{item.name}</td>
-                          {userRole === 'superadmin' && <td className="commerce-loc">{item.loc}</td>}
+                          {userRole === 'superadmin' && <td className="commerce-loc">{item.localidades?.name || '-'}</td>}
+                          <td><span className={`badge ${item.rubros?.badge_color || 'badge-indigo'}`}>{item.rubros?.name || '-'}</span></td>
                           <td style={{ fontSize: '0.85rem', color: item.expiration_date && new Date(item.expiration_date) < new Date() ? '#fb7185' : (isDark ? '#cbd5e1' : '#64748b') }}>
                             {item.expiration_date ? new Date(item.expiration_date).toLocaleDateString() : 'Sin plan'}
                           </td>
                           <td><div className={`status ${item.status}`}><span className={`status-dot ${item.status}`}></span>{item.status === 'active' ? 'Activo' : 'Pendiente'}</div></td>
-                          <td style={{ textAlign: 'right' }}><button className="edit-btn">Editar</button></td>
+                          <td style={{ textAlign: 'right' }}>
+                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                              <button className="edit-btn" onClick={() => handleEditCommerceClick(item)}>Editar</button>
+                              <button className="delete-btn" title="Eliminar comercio" onClick={() => handleDeleteCommerce(item)}><Trash2 size={16} /></button>
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -987,85 +1236,108 @@ function App() {
           {/* TAB: COMERCIOS */}
           {activeTab === 'comercios' && (
             <>
-              <div className="stats-grid">
+              {userRole !== 'commerce' && (
+                <>
+                  <div className="stats-grid">
                 <div className="stat-card animate-in"><div className="stat-card-header"><div className="stat-icon indigo"><Store size={22} /></div></div><div className="stat-label">Total Comercios</div><div className="stat-value">{filteredCommerce.length}</div></div>
                 <div className="stat-card animate-in" style={{ animationDelay: '0.1s' }}><div className="stat-card-header"><div className="stat-icon emerald"><TrendingUp size={22} /></div></div><div className="stat-label">Activos / Publicados</div><div className="stat-value">{filteredCommerce.filter(c => c.status === 'active').length}</div></div>
                 <div className="stat-card animate-in" style={{ animationDelay: '0.2s' }}><div className="stat-card-header"><div className="stat-icon amber"><Bell size={22} /></div></div><div className="stat-label">En Revisión</div><div className="stat-value">{filteredCommerce.filter(c => c.status === 'pending').length}</div></div>
               </div>
 
-              <section className="table-section animate-in" style={{ animationDelay: '0.3s' }}>
-                <div className="table-header">
-                  <h3 className="font-outfit">Directorio de Comercios</h3>
-                  <button className="btn-add" onClick={() => {
-                    setEditingCommerceId(null);
-                    setNewComName('');
-                    setNewComLocalityId('');
-                    setNewComRubroId('');
-                    setNewComWhatsapp('');
-                    setNewComAddress('');
-                    setNewComMapsUrl('');
-                    setNewComMainImagePreview(null);
-                    setNewComMainImageFile(null);
-                    setGalleryItems([]);
-                    setShowCommerceModal(true);
-                  }}>
-                    <Plus size={18} /> Alta de Comercio
-                  </button>
+              {/* BUSCADOR INTELIGENTE */}
+              <div style={{ marginBottom: '20px', position: 'relative' }}>
+                <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                <input type="text" placeholder="Buscar comercio por nombre, rubro o dirección..." value={adminComerciosSearch} onChange={e => setAdminComerciosSearch(e.target.value)} style={{ width: '100%', padding: '14px 16px 14px 44px', borderRadius: '14px', background: isDark ? 'rgba(255,255,255,0.04)' : '#fff', border: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'}`, color: isDark ? '#e2e8f0' : '#0f172a', outline: 'none', fontSize: '0.9rem', fontFamily: 'Inter, sans-serif' }} />
+                {adminComerciosSearch && <div onClick={() => setAdminComerciosSearch('')} style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', color: '#94a3b8' }}><X size={16} /></div>}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h3 className="font-outfit" style={{ color: isDark ? '#fff' : '#0f172a', margin: 0 }}>Directorio de Comercios</h3>
+                <button className="btn-add" onClick={() => { setEditingCommerceId(null); setNewComName(''); setNewComLocalityId(userRole === 'localadmin' ? assignedLocalityId : ''); setNewComRubroId(''); setNewComWhatsapp(''); setNewComAddress(''); setNewComMapsUrl(''); setNewComDescription(''); setNewComInstagram(''); setNewComFacebook(''); setNewComWebsite(''); setNewComMainImagePreview(null); setNewComMainImageFile(null); setGalleryItems([]); setShowCommerceModal(true); }}><Plus size={18} /> Alta de Comercio</button>
+              </div>
+
+              {isLoadingComercios ? (
+                <div style={{ textAlign: 'center', padding: '40px', color: '#6366f1' }}>Cargando comercios...</div>
+              ) : (() => {
+                const searchQ = adminComerciosSearch.toLowerCase().trim();
+                const filtered = comercios.filter(c => {
+                  if (!searchQ) return true;
+                  return c.name?.toLowerCase().includes(searchQ) || c.rubros?.name?.toLowerCase().includes(searchQ) || c.address?.toLowerCase().includes(searchQ) || c.localidades?.name?.toLowerCase().includes(searchQ);
+                });
+                const grouped = localities.map(loc => ({ ...loc, items: filtered.filter(c => c.locality_id === loc.id) })).filter(g => g.items.length > 0);
+                const ungrouped = filtered.filter(c => !localities.find(l => l.id === c.locality_id));
+                if (grouped.length === 0 && ungrouped.length === 0) return <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>{searchQ ? `No se encontraron resultados para "${adminComerciosSearch}"` : 'No hay comercios aún.'}</div>;
+                return [...grouped.map(group => (
+                  <section key={group.id} className="table-section animate-in" style={{ marginBottom: '16px' }}>
+                    <div onClick={() => toggleLocalityCollapse('com_' + group.id)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 32px', cursor: 'pointer', borderBottom: collapsedLocalities['com_' + group.id] ? 'none' : `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}` }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <MapPin size={18} color="#6366f1" />
+                        <h3 className="font-outfit" style={{ margin: 0, color: isDark ? '#fff' : '#0f172a', fontSize: '1.1rem' }}>{group.name}</h3>
+                        <span className="badge badge-indigo">{group.items.length} comercios</span>
+                      </div>
+                      <span style={{ color: '#64748b', fontSize: '1.2rem', transition: 'transform 0.2s', transform: collapsedLocalities['com_' + group.id] ? 'rotate(-90deg)' : 'rotate(0)' }}>▾</span>
+                    </div>
+                    {!collapsedLocalities['com_' + group.id] && (
+                      <div className="table-wrapper">
+                        <table className="data-table">
+                          <thead><tr><th>Comercio</th><th>Rubro</th><th>Vencimiento</th><th>Estado</th><th style={{ textAlign: 'right' }}>Acciones</th></tr></thead>
+                          <tbody>
+                            {group.items.map((item, i) => (
+                              <tr key={item.id || i}>
+                                <td style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                  {item.main_image ? <img src={item.main_image} alt={item.name} style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}` }} /> : <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}><Store size={20} /></div>}
+                                  <div><div style={{ fontWeight: 600, color: isDark ? '#fff' : '#0f172a' }}>{item.name}</div>{item.address && <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{item.address}</span>}</div>
+                                </td>
+                                <td><span className={`badge ${item.rubros?.badge_color || 'badge-indigo'}`}>{item.rubros?.name || '-'}</span></td>
+                                <td>
+                                  <div style={{ fontSize: '0.85rem', color: item.expiration_date && new Date(item.expiration_date) < new Date() ? '#fb7185' : (isDark ? '#e2e8f0' : '#1e293b'), fontWeight: 500 }}>{item.expiration_date ? new Date(item.expiration_date).toLocaleDateString() : 'Sin plan'}</div>
+                                  {item.expiration_date && new Date(item.expiration_date) < new Date() && <div style={{ fontSize: '0.7rem', color: '#fb7185' }}>Vencida</div>}
+                                </td>
+                                <td><div className={`status ${item.status}`}><span className={`status-dot ${item.status}`}></span>{item.status === 'active' ? 'Publicado' : 'Revisión'}</div></td>
+                                <td style={{ textAlign: 'right' }}>
+                                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                    <button className="edit-btn" onClick={() => handleEditCommerceClick(item)}>Gestionar</button>
+                                    <button className="delete-btn" title="Eliminar comercio" onClick={() => handleDeleteCommerce(item)}><Trash2 size={16} /></button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </section>
+                )), ungrouped.length > 0 && (
+                  <section key="ungrouped" className="table-section animate-in" style={{ marginBottom: '16px' }}>
+                    <div style={{ padding: '16px 32px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}` }}>
+                      <h3 className="font-outfit" style={{ margin: 0, color: '#94a3b8', fontSize: '1.1rem' }}>Sin localidad asignada</h3>
+                    </div>
+                    <div className="table-wrapper"><table className="data-table"><thead><tr><th>Comercio</th><th>Rubro</th><th>Vencimiento</th><th>Estado</th><th style={{ textAlign: 'right' }}>Acciones</th></tr></thead><tbody>{ungrouped.map((item, i) => (<tr key={item.id || i}><td style={{ fontWeight: 600, color: isDark ? '#fff' : '#0f172a' }}>{item.name}</td><td>-</td><td>-</td><td>-</td><td style={{ textAlign: 'right' }}><div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}><button className="edit-btn" onClick={() => handleEditCommerceClick(item)}>Gestionar</button><button className="delete-btn" title="Eliminar comercio" onClick={() => handleDeleteCommerce(item)}><Trash2 size={16} /></button></div></td></tr>))}</tbody></table></div>
+                  </section>
+                )];
+              })()}
+              </>
+              )}
+
+              {userRole === 'commerce' && (
+                <div className="animate-in" style={{ animationDuration: '0.5s' }}>
+                  <div style={{ background: isDark ? 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)' : '#ffffff', borderRadius: '24px', padding: '50px 20px', textAlign: 'center', border: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : '#e2e8f0'}`, boxShadow: '0 20px 40px -15px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+                    <div style={{ width: '96px', height: '96px', background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', color: '#fff', borderRadius: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 20px -5px rgba(99,102,241,0.4)' }}>
+                      <Store size={44} />
+                    </div>
+                    <h2 className="font-outfit" style={{ fontSize: '2rem', color: isDark ? '#fff' : '#0f172a', margin: '10px 0 5px' }}>
+                      {assignedCommerce ? assignedCommerce.name : 'Mi Comercio'}
+                    </h2>
+                    <p style={{ color: '#64748b', maxWidth: '420px', lineHeight: '1.6', margin: '0 auto 15px' }}>
+                      ¡Hola! Desde este panel podés actualizar la descripción, los horarios de atención, enlaces a redes sociales y subir fotos nuevas para que tus clientes te encuentren fácilmente en la app pública.
+                    </p>
+                    <button className="action-btn primary" style={{ padding: '18px 36px', fontSize: '1.1rem', borderRadius: '16px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 15px 25px -10px rgba(99,102,241,0.5)', cursor: 'pointer', transition: 'all 0.3s' }}
+                      onClick={() => assignedCommerce && handleEditCommerceClick(assignedCommerce)}>
+                      <Edit3 size={22} /> Gestionar Mi Comercio
+                    </button>
+                  </div>
                 </div>
-                <div className="table-wrapper">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Comercio</th>
-                        <th>Rubro</th>
-                        <th>Vencimiento</th>
-                        <th>Estado</th>
-                        <th style={{ textAlign: 'right' }}>Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {isLoadingComercios ? (
-                        <tr><td colSpan="5" style={{ textAlign: 'center', padding: '20px' }}>Cargando comercios de Supabase...</td></tr>
-                      ) : comercios.length === 0 ? (
-                        <tr><td colSpan="5" style={{ textAlign: 'center', padding: '20px' }}>No hay comercios aún.</td></tr>
-                      ) : (
-                        comercios.map((item, i) => (
-                          <tr key={item.id || i}>
-                            <td style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                              {item.main_image ? (
-                                <img src={item.main_image} alt={item.name} style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}` }} />
-                              ) : (
-                                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
-                                  <Store size={20} />
-                                </div>
-                              )}
-                              <div>
-                                <div style={{ fontWeight: 600, color: isDark ? '#fff' : '#0f172a' }}>{item.name}</div>
-                                <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{item.localidades?.name}</span>
-                              </div>
-                            </td>
-                            <td>
-                              <div style={{ fontSize: '0.85rem', color: item.expiration_date && new Date(item.expiration_date) < new Date() ? '#fb7185' : (isDark ? '#e2e8f0' : '#1e293b'), fontWeight: 500 }}>
-                                {item.expiration_date ? new Date(item.expiration_date).toLocaleDateString() : 'Sin plan'}
-                              </div>
-                              {item.expiration_date && new Date(item.expiration_date) < new Date() && (
-                                <div style={{ fontSize: '0.7rem', color: '#fb7185' }}>Suscripción Vencida</div>
-                              )}
-                            </td>
-                            <td>
-                              <div className={`status ${item.status}`}>
-                                <span className={`status-dot ${item.status}`}></span>
-                                {item.status === 'active' ? 'Publicado' : 'Revisión'}
-                              </div>
-                            </td>
-                            <td style={{ textAlign: 'right' }}><button className="edit-btn" onClick={() => handleEditCommerceClick(item)}>Gestionar</button></td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
+              )}
 
               {/* MODAL ALTA COMERCIO */}
               {showCommerceModal && (
@@ -1085,9 +1357,17 @@ function App() {
                         </div>
                         <div>
                           <label style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '6px', display: 'block' }}>Localidad</label>
-                          <select value={newComLocalityId} onChange={e => setNewComLocalityId(e.target.value)} style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none', colorScheme: isDark ? 'dark' : 'light' }}>
+                          <select 
+                            disabled={userRole === 'localadmin'}
+                            value={newComLocalityId} 
+                            onChange={e => setNewComLocalityId(e.target.value)} 
+                            style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none', colorScheme: isDark ? 'dark' : 'light', opacity: userRole === 'localadmin' ? 0.8 : 1 }}
+                          >
                             <option value="" style={{ color: isDark ? '#000' : 'inherit' }}>Seleccionar Localidad</option>
-                            {localities.map(loc => <option key={loc.id} value={loc.id} style={{ color: isDark ? '#000' : 'inherit' }}>{loc.name}</option>)}
+                            {localities
+                              .filter(loc => userRole === 'superadmin' || loc.id === assignedLocalityId)
+                              .map(loc => <option key={loc.id} value={loc.id} style={{ color: isDark ? '#000' : 'inherit' }}>{loc.name}</option>)
+                            }
                           </select>
                         </div>
                       </div>
@@ -1129,7 +1409,7 @@ function App() {
                         <div style={{ textAlign: 'right', fontSize: '0.7rem', color: '#94a3b8', marginTop: '4px' }}>{(newComDescription || '').length}/250</div>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
                         <div>
                           <label style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '6px', display: 'block' }}>Instagram (URL)</label>
                           <input type="text" value={newComInstagram || ''} onChange={e => setNewComInstagram(e.target.value)} placeholder="instagram.com/usuario" style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none' }} />
@@ -1137,6 +1417,10 @@ function App() {
                         <div>
                           <label style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '6px', display: 'block' }}>Facebook (URL)</label>
                           <input type="text" value={newComFacebook || ''} onChange={e => setNewComFacebook(e.target.value)} placeholder="facebook.com/pagina" style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none' }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '6px', display: 'block' }}>Página Web (URL)</label>
+                          <input type="text" value={newComWebsite || ''} onChange={e => setNewComWebsite(e.target.value)} placeholder="www.ejemplo.com" style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none' }} />
                         </div>
                       </div>
 
@@ -1177,6 +1461,38 @@ function App() {
                         </div>
                         <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Podés subir hasta 6 fotos adicionales para la galería de este comercio.</span>
                       </div>
+ 
+                      {/* GESTION DE PLAN / VENCIMIENTO */}
+                      {editingCommerceId && (
+                        <div style={{ marginTop: '20px', padding: '16px', borderRadius: '16px', background: isDark ? 'rgba(99, 102, 241, 0.05)' : '#eff6ff', border: `1px dashed ${isDark ? 'rgba(99, 102, 241, 0.4)' : '#6366f1'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ background: '#6366f1', padding: '10px', borderRadius: '12px', color: '#fff' }}><CreditCard size={20} /></div>
+                            <div>
+                              <div style={{ fontSize: '0.75rem', color: isDark ? '#a5b4fc' : '#4f46e5', fontWeight: '700', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Vencimiento de Plan</div>
+                              <div style={{ fontSize: '0.95rem', fontWeight: '600', color: isDark ? '#fff' : '#1e293b' }}>
+                                {(() => {
+                                  const commerce = comercios.find(c => c.id === editingCommerceId);
+                                  if (!commerce || !commerce.expiration_date) return 'Sin plan asignado';
+                                  return new Date(commerce.expiration_date).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' });
+                                })()}
+                              </div>
+                            </div>
+                          </div>
+                          <button 
+                            type="button" 
+                            onClick={() => {
+                              setActiveTab('pagos');
+                              setNewPagoCommerceId(editingCommerceId);
+                              setPaymentTypeChoice('comercio');
+                              setShowCommerceModal(false);
+                              setTimeout(() => setShowPagoModal(true), 150); 
+                            }}
+                            style={{ padding: '10px 18px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)' }}
+                          >
+                            <Plus size={16} /> Asignar / Renovar
+                          </button>
+                        </div>
+                      )}
 
                       <div style={{ marginTop: '20px', padding: '20px', borderRadius: '20px', background: isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : '#e2e8f0'}` }}>
                         <h4 style={{ color: isDark ? '#fff' : '#0f172a', fontSize: '1rem', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>🕒 Horarios de Atención</h4>
@@ -1228,7 +1544,7 @@ function App() {
               <section className="table-section animate-in" style={{ animationDelay: '0.3s' }}>
                 <div className="table-header">
                   <h3 className="font-outfit">Gestión de Localidades</h3>
-                  <button className="btn-add" onClick={() => { setEditingLocalityId(null); setNewLocName(''); setNewLocProv(''); setNewLocStatus('active'); setNewLocWeatherLink(''); setNewLocSatelliteLink(''); setNewLocPharmaciesLink(''); setLocWeatherType('url'); setLocSatelliteType('url'); setLocPharmaciesType('url'); setNewLocCommission(20); setShowLocalityModal(true); }}><MapPin size={18} /> Agregar Localidad</button>
+                  <button className="btn-add" onClick={() => { setEditingLocalityId(null); setNewLocName(''); setNewLocProv(''); setNewLocStatus('active'); setNewLocWeatherLink(''); setNewLocSatelliteLink(''); setNewLocPharmaciesLink(''); setNewLocWhatsapp(''); setNewLocAdminWhatsapp(''); setNewLocAdminName(''); setNewLocAdminEmail(''); setNewLocAdminPassword(''); setLocWeatherType('url'); setLocSatelliteType('url'); setLocPharmaciesType('url'); setNewLocCommission(20); setShowLocalityModal(true); }}><MapPin size={18} /> Agregar Localidad</button>
                 </div>
                 <div className="table-wrapper">
                   <table className="data-table">
@@ -1242,7 +1558,24 @@ function App() {
                         localities.map((item, i) => (
                           <tr key={item.id || i}>
                             <td><div className="commerce-name">{item.name}</div><div className="commerce-loc">{item.province}</div></td>
-                            <td style={{ fontWeight: 500, color: isDark ? '#e2e8f0' : '#1e293b' }}>Sin Asignar <button style={{ marginLeft: '8px', padding: '2px 8px', background: 'rgba(99,102,241,0.1)', color: '#818cf8', border: 'none', borderRadius: '4px', fontSize: '0.7rem', cursor: 'pointer' }}>Asignar</button></td>
+                            <td style={{ fontWeight: 500, color: isDark ? '#e2e8f0' : '#1e293b' }}>
+                              {(() => {
+                                const manager = usersList.find(u => u.locality_id === item.id && u.role === 'Admin Local');
+                                if (manager) {
+                                  return (
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                      <span style={{ fontWeight: 600 }}>{manager.name}</span>
+                                      <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{manager.email}</span>
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <>
+                                    Sin Asignar <button onClick={() => handleEditLocalityClick(item)} style={{ marginLeft: '8px', padding: '2px 8px', background: 'rgba(99,102,241,0.1)', color: '#818cf8', border: 'none', borderRadius: '4px', fontSize: '0.7rem', cursor: 'pointer' }}>Asignar</button>
+                                  </>
+                                );
+                              })()}
+                            </td>
                             <td style={{ fontWeight: 600, color: '#fb7185' }}>{item.commission_percentage || 0}%</td>
                             <td><span className="badge badge-indigo">0 adheridos</span></td>
                             <td><div className={`status ${item.status === 'active' ? 'active' : item.status === 'pending' ? 'pending' : 'overdue'}`}><span className={`status-dot ${item.status === 'active' ? 'active' : item.status === 'pending' ? 'pending' : 'overdue'}`}></span>{item.status === 'active' ? 'Operativa' : item.status === 'pending' ? 'Pendiente' : 'Inactiva'}</div></td>
@@ -1260,60 +1593,6 @@ function App() {
                 </div>
               </section>
 
-              {/* MODAL PRECIOS POR CIUDAD */}
-              {showPriceModal && (
-                <div className="gallery-modal" style={{ justifyContent: 'center', alignItems: 'center' }}>
-                  <div style={{ background: isDark ? '#0f172a' : '#ffffff', padding: '32px', borderRadius: '24px', width: '100%', maxWidth: '400px', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}`, boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
-                    <div className="gallery-header" style={{ marginBottom: '20px' }}>
-                      <div>
-                        <h3 className="font-outfit" style={{ color: isDark ? '#fff' : '#0f172a', margin: 0 }}>Precios en {editingPriceLocality?.name}</h3>
-                        <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '4px 0 0 0' }}>Configura los costos para esta franquicia</p>
-                      </div>
-                      <div className="close-gallery" onClick={() => setShowPriceModal(false)}><X size={24} /></div>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                      {isLoadingPlanes ? (
-                        <div style={{ textAlign: 'center', padding: '20px', color: '#6366f1' }}>
-                          <div className="spinner" style={{ margin: '0 auto 10px auto' }}></div>
-                          Cargando planes...
-                        </div>
-                      ) : planesError ? (
-                        <div style={{ textAlign: 'center', padding: '20px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '12px', color: '#ef4444', fontSize: '0.9rem' }}>
-                          ⚠️ Error: {planesError}
-                        </div>
-                      ) : planes.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '20px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '12px', color: '#ef4444', fontSize: '0.9rem' }}>
-                          ⚠️ No se encontraron planes en la base de datos.<br />
-                          Asegúrate de ejecutar el script SQL de Planes.
-                        </div>
-                      ) : planes.map(plan => (
-                        <div key={plan.id}>
-                          <label style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '6px', display: 'block' }}>Plan {plan.name} ({plan.duration_months} meses)</label>
-                          <div style={{ position: 'relative' }}>
-                            <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }}>$</span>
-                            <input
-                              type="number"
-                              value={tempPrices[plan.id] || 0}
-                              onChange={e => setTempPrices({ ...tempPrices, [plan.id]: e.target.value })}
-                              style={{ width: '100%', padding: '12px 16px 12px 30px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none' }}
-                            />
-                          </div>
-                        </div>
-                      ))}
-
-                      <button
-                        onClick={handleSavePrices}
-                        disabled={isSavingPrices}
-                        className="action-btn primary"
-                        style={{ marginTop: '10px', padding: '14px', fontSize: '0.9rem', opacity: isSavingPrices ? 0.6 : 1, cursor: 'pointer' }}
-                      >
-                        {isSavingPrices ? 'Guardando...' : 'Actualizar Precios en la Ciudad'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* MODAL AGREGAR LOCALIDAD */}
               {showLocalityModal && (
@@ -1394,8 +1673,23 @@ function App() {
 
                       <div style={{ height: '1px', background: isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0', margin: '10px 0' }}></div>
                       <h4 style={{ color: isDark ? '#fff' : '#0f172a', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}><UserPlus size={18} color="#6366f1" /> Asignar Encargado</h4>
-                      <div><label style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '6px', display: 'block' }}>Nombre Completo</label><input type="text" placeholder="Nombre del administrador" style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none' }} /></div>
-                      <div><label style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '6px', display: 'block' }}>Correo Electrónico</label><input type="email" placeholder="email@ejemplo.com" style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none' }} /></div>
+                      <div><label style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '6px', display: 'block' }}>Nombre Completo</label><input type="text" placeholder="Nombre del administrador" value={newLocAdminName} onChange={e => setNewLocAdminName(e.target.value)} style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none' }} /></div>
+                      <div><label style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '6px', display: 'block' }}>Correo Electrónico</label><input type="email" placeholder="email@ejemplo.com" value={newLocAdminEmail} onChange={e => setNewLocAdminEmail(e.target.value)} style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none' }} /></div>
+                      <div>
+                        <label style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '6px', display: 'block' }}>Contraseña de Acceso (Opcional - Para crear login)</label>
+                        <div style={{ position: 'relative' }}>
+                          <input 
+                            type={showPassLocAdmin ? "text" : "password"} 
+                            placeholder="Crear contraseña para el encargado" 
+                            value={newLocAdminPassword} 
+                            onChange={e => setNewLocAdminPassword(e.target.value)} 
+                            style={{ width: '100%', padding: '12px 45px 12px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none' }} 
+                          />
+                          <button type="button" onClick={() => setShowPassLocAdmin(!showPassLocAdmin)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {showPassLocAdmin ? <EyeOff size={18} /> : <Eye size={18} />}
+                          </button>
+                        </div>
+                      </div>
                       <div><label style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '6px', display: 'block' }}>WhatsApp del Administrador (Localidad)</label><input type="text" value={newLocAdminWhatsapp} onChange={e => setNewLocAdminWhatsapp(e.target.value)} placeholder="Ej: +549..." style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none' }} /></div>
                       <button onClick={handleSaveLocality} disabled={isSavingLoc || !newLocName || !newLocProv} className="action-btn primary" style={{ marginTop: '10px', padding: '14px', fontSize: '0.9rem', opacity: (!newLocName || !newLocProv || isSavingLoc) ? 0.6 : 1, cursor: (!newLocName || !newLocProv || isSavingLoc) ? 'not-allowed' : 'pointer' }}>
                         {isSavingLoc ? 'Guardando en la Nube...' : 'Guardar y Generar Accesos'}
@@ -1485,49 +1779,66 @@ function App() {
               </div>
 
               {activePagosSubTab === 'comercios' ? (
-                <section className="table-section animate-in" style={{ animationDelay: '0.3s' }}>
-                  <div className="table-header">
-                    <h3 className="font-outfit">{userRole === 'superadmin' ? 'Historial Global de Pagos de Comercios' : 'Facturación de Comercios'}</h3>
+                <>
+                  {/* BUSCADOR INTELIGENTE PAGOS */}
+                  <div style={{ marginBottom: '20px', position: 'relative' }}>
+                    <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                    <input type="text" placeholder="Buscar pago por comercio o localidad..." value={adminPagosSearch} onChange={e => setAdminPagosSearch(e.target.value)} style={{ width: '100%', padding: '14px 16px 14px 44px', borderRadius: '14px', background: isDark ? 'rgba(255,255,255,0.04)' : '#fff', border: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'}`, color: isDark ? '#e2e8f0' : '#0f172a', outline: 'none', fontSize: '0.9rem', fontFamily: 'Inter, sans-serif' }} />
+                    {adminPagosSearch && <div onClick={() => setAdminPagosSearch('')} style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', color: '#94a3b8' }}><X size={16} /></div>}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <h3 className="font-outfit" style={{ color: isDark ? '#fff' : '#0f172a', margin: 0 }}>{userRole === 'superadmin' ? 'Historial Global de Pagos' : 'Facturación de Comercios'}</h3>
                     <button className="btn-add" onClick={() => { setPaymentTypeChoice('comercio'); setShowPagoModal(true); }}><Plus size={18} /> Registrar Pago</button>
                   </div>
-                  <div className="table-wrapper">
-                    <table className="data-table">
-                      <thead>
-                        <tr>
-                          <th>Comercio / Localidad</th>
-                          <th>Plan Contratado</th>
-                          <th>Monto Bruto</th>
-                          <th>Comisión {userRole === 'superadmin' ? '(Mía)' : '(A Central)'}</th>
-                          <th style={{ textAlign: 'right' }}>Acciones</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {isLoadingPagos ? (
-                          <tr><td colSpan="5" style={{ textAlign: 'center', padding: '20px' }}>Cargando historial...</td></tr>
-                        ) : pagosHistorial.length === 0 ? (
-                          <tr><td colSpan="5" style={{ textAlign: 'center', padding: '20px' }}>No hay pagos registrados aún.</td></tr>
-                        ) : (
-                          pagosHistorial.map((item, i) => {
-                            const locality = localities.find(l => l.id === item.comercios?.locality_id);
-                            const commissionAmount = (item.amount || 0) * ((locality?.commission_percentage || 0) / 100);
-                            return (
-                              <tr key={item.id || i}>
-                                <td>
-                                  <div className="commerce-name">{item.comercios?.name}</div>
-                                  <div className="commerce-loc">{item.comercios?.localidades?.name}</div>
-                                </td>
-                                <td><span className="badge badge-indigo">{item.planes?.name}</span></td>
-                                <td style={{ fontWeight: 600, color: isDark ? '#e2e8f0' : '#1e293b' }}>${item.amount}</td>
-                                <td style={{ color: '#fb7185' }}>-${commissionAmount.toLocaleString()} ({locality?.commission_percentage}%)</td>
-                                <td style={{ textAlign: 'right' }}><button className="edit-btn">Detalle</button></td>
-                              </tr>
-                            );
-                          })
+
+                  {isLoadingPagos ? (
+                    <div style={{ textAlign: 'center', padding: '40px', color: '#6366f1' }}>Cargando historial...</div>
+                  ) : (() => {
+                    const searchQ = adminPagosSearch.toLowerCase().trim();
+                    const filtered = pagosHistorial.filter(p => {
+                      if (!searchQ) return true;
+                      return p.comercios?.name?.toLowerCase().includes(searchQ) || p.comercios?.localidades?.name?.toLowerCase().includes(searchQ) || p.planes?.name?.toLowerCase().includes(searchQ);
+                    });
+                    const grouped = localities.map(loc => ({ ...loc, items: filtered.filter(p => p.comercios?.locality_id === loc.id) })).filter(g => g.items.length > 0);
+                    if (grouped.length === 0) return <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>{searchQ ? `No se encontraron pagos para "${adminPagosSearch}"` : 'No hay pagos registrados aún.'}</div>;
+                    return grouped.map(group => (
+                      <section key={group.id} className="table-section animate-in" style={{ marginBottom: '16px' }}>
+                        <div onClick={() => toggleLocalityCollapse('pag_' + group.id)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 32px', cursor: 'pointer', borderBottom: collapsedLocalities['pag_' + group.id] ? 'none' : `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}` }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <MapPin size={18} color="#6366f1" />
+                            <h3 className="font-outfit" style={{ margin: 0, color: isDark ? '#fff' : '#0f172a', fontSize: '1.1rem' }}>{group.name}</h3>
+                            <span className="badge badge-emerald">{group.items.length} pagos</span>
+                            <span style={{ fontSize: '0.8rem', color: '#34d399', fontWeight: 600 }}>${group.items.reduce((a, p) => a + (p.amount || 0), 0).toLocaleString()}</span>
+                          </div>
+                          <span style={{ color: '#64748b', fontSize: '1.2rem', transition: 'transform 0.2s', transform: collapsedLocalities['pag_' + group.id] ? 'rotate(-90deg)' : 'rotate(0)' }}>▾</span>
+                        </div>
+                        {!collapsedLocalities['pag_' + group.id] && (
+                          <div className="table-wrapper">
+                            <table className="data-table">
+                              <thead><tr><th>Comercio</th><th>Plan</th><th>Monto Bruto</th><th>Comisión {userRole === 'superadmin' ? '(Mía)' : '(A Central)'}</th><th style={{ textAlign: 'right' }}>Acciones</th></tr></thead>
+                              <tbody>
+                                {group.items.map((item, i) => {
+                                  const loc = localities.find(l => l.id === item.comercios?.locality_id);
+                                  const comm = (item.amount || 0) * ((loc?.commission_percentage || 0) / 100);
+                                  return (
+                                    <tr key={item.id || i}>
+                                      <td><div className="commerce-name">{item.comercios?.name}</div></td>
+                                      <td><span className="badge badge-indigo">{item.planes?.name}</span></td>
+                                      <td style={{ fontWeight: 600, color: isDark ? '#e2e8f0' : '#1e293b' }}>${item.amount}</td>
+                                      <td style={{ color: '#fb7185' }}>-${comm.toLocaleString()} ({loc?.commission_percentage || 0}%)</td>
+                                      <td style={{ textAlign: 'right' }}><button className="edit-btn">Detalle</button></td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
                         )}
-                      </tbody>
-                    </table>
-                  </div>
-                </section>
+                      </section>
+                    ));
+                  })()}
+                </>
               ) : (
                 <section className="table-section animate-in" style={{ animationDelay: '0.3s' }}>
                   <div className="table-header">
@@ -1708,9 +2019,9 @@ function App() {
           {activeTab === 'usuarios' && (
             <>
               <div className="stats-grid">
-                <div className="stat-card animate-in"><div className="stat-card-header"><div className="stat-icon indigo"><ShieldCheck size={22} /></div></div><div className="stat-label">Admins {userRole === 'superadmin' ? 'Globales' : 'Locales'}</div><div className="stat-value">{userRole === 'superadmin' ? '3' : '1'}</div></div>
-                <div className="stat-card animate-in" style={{ animationDelay: '0.1s' }}><div className="stat-card-header"><div className="stat-icon emerald"><Store size={22} /></div></div><div className="stat-label">Cuentas Comercios</div><div className="stat-value">{userRole === 'superadmin' ? '142' : '38'}</div></div>
-                <div className="stat-card animate-in" style={{ animationDelay: '0.2s' }}><div className="stat-card-header"><div className="stat-icon pink"><Bell size={22} /></div></div><div className="stat-label">Permisos Extendidos</div><div className="stat-value">{userRole === 'superadmin' ? '89' : '24'}</div></div>
+                <div className="stat-card animate-in"><div className="stat-card-header"><div className="stat-icon indigo"><ShieldCheck size={22} /></div></div><div className="stat-label">Admins {userRole === 'superadmin' ? 'Globales' : 'Locales'}</div><div className="stat-value">{countAdmins}</div></div>
+                <div className="stat-card animate-in" style={{ animationDelay: '0.1s' }}><div className="stat-card-header"><div className="stat-icon emerald"><Store size={22} /></div></div><div className="stat-label">Cuentas Comercios</div><div className="stat-value">{countCommerces}</div></div>
+                <div className="stat-card animate-in" style={{ animationDelay: '0.2s' }}><div className="stat-card-header"><div className="stat-icon pink"><Bell size={22} /></div></div><div className="stat-label">Permisos Extendidos</div><div className="stat-value">{countExtended}</div></div>
               </div>
 
               <section className="table-section animate-in" style={{ animationDelay: '0.3s' }}>
@@ -1732,7 +2043,7 @@ function App() {
                   <table className="data-table">
                     <thead><tr><th>Usuario</th><th>Rol</th><th>Ámbito / Negocio</th><th>Estado</th><th style={{ textAlign: 'right' }}>Acciones</th></tr></thead>
                     <tbody>
-                      {(userRole === 'superadmin' ? usersList : usersList.filter(u => u.loc === assignedLocality && u.role === 'Comercio')).map((item, i) => (
+                      {displayUsers.map((item, i) => (
                         <tr key={i}>
                           <td><div className="commerce-name">{item.name}</div><div className="commerce-loc">{item.email}</div></td>
                           <td><span className={`badge ${item.role === 'Super Admin' ? 'badge-pink' : item.role === 'Admin Local' ? 'badge-indigo' : 'badge-emerald'}`}>{item.role}</span></td>
@@ -1766,6 +2077,24 @@ function App() {
                           <input type="email" placeholder="email@ejemplo.com" value={newUserEmail} onChange={e => setNewUserEmail(e.target.value)} style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none' }} />
                         </div>
                       </div>
+
+                      {!editingUser && (
+                        <div>
+                          <label style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '6px', display: 'block' }}>Contraseña de Acceso</label>
+                          <div style={{ position: 'relative' }}>
+                            <input 
+                              type={showPassUser ? "text" : "password"} 
+                              placeholder="Mínimo 6 caracteres" 
+                              value={newUserPassword} 
+                              onChange={e => setNewUserPassword(e.target.value)} 
+                              style={{ width: '100%', padding: '12px 45px 12px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none' }} 
+                            />
+                            <button type="button" onClick={() => setShowPassUser(!showPassUser)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              {showPassUser ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                          </div>
+                        </div>
+                      )}
 
                       <div>
                         <label style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '6px', display: 'block' }}>Rol del Usuario</label>
@@ -1817,7 +2146,7 @@ function App() {
                           </button>
                         )}
                         <button onClick={handleSaveUserAccess} className="action-btn primary" style={{ flex: 2, padding: '14px', fontSize: '0.9rem' }}>
-                          {editingUser ? 'Guardar Cambios' : 'Enviar Credenciales de Acceso'}
+                          {editingUser ? 'Guardar Cambios' : 'Crear y Activar Acceso'}
                         </button>
                       </div>
                     </div>
@@ -1826,7 +2155,407 @@ function App() {
               )}
             </>
           )}
+          {/* TAB: CONFIGURACIÓN */}
+          {activeTab === 'configuracion' && (
+            <>
+              <div className="stats-grid">
+                <div className="stat-card animate-in"><div className="stat-card-header"><div className="stat-icon indigo"><CreditCard size={22} /></div></div><div className="stat-label">Planes Activos</div><div className="stat-value">{planes.length}</div></div>
+                <div className="stat-card animate-in" style={{ animationDelay: '0.1s' }}><div className="stat-card-header"><div className="stat-icon emerald"><MapPin size={22} /></div></div><div className="stat-label">Localidades</div><div className="stat-value">{localities.length}</div></div>
+                <div className="stat-card animate-in" style={{ animationDelay: '0.2s' }}><div className="stat-card-header"><div className="stat-icon pink"><DollarSign size={22} /></div></div><div className="stat-label">Precios Configurados</div><div className="stat-value">{preciosPlanes.length}</div></div>
+              </div>
 
+              {/* SECCIÓN: GESTIÓN DE PLANES */}
+              <section className="table-section animate-in" style={{ animationDelay: '0.3s', marginBottom: '24px' }}>
+                <div className="table-header">
+                  <h3 className="font-outfit">💳 Planes de Suscripción</h3>
+                  <button className="btn-add" onClick={async () => {
+                    const name = prompt('Nombre del plan (ej: Trimestral):');
+                    if (!name) return;
+                    const months = prompt('Duración en meses:');
+                    if (!months || isNaN(months)) return;
+                    const { error } = await supabase.from('planes').insert([{ name, duration_months: parseInt(months) }]);
+                    if (error) { alert('Error: ' + error.message); } else { fetchPlanes(); }
+                  }}><Plus size={18} /> Nuevo Plan</button>
+                </div>
+                <div className="table-wrapper">
+                  <table className="data-table">
+                    <thead><tr><th>Plan</th><th>Duración</th><th>Creado</th><th style={{ textAlign: 'right' }}>Acciones</th></tr></thead>
+                    <tbody>
+                      {isLoadingPlanes ? (
+                        <tr><td colSpan="4" style={{ textAlign: 'center', padding: '20px' }}>Cargando planes...</td></tr>
+                      ) : planes.length === 0 ? (
+                        <tr><td colSpan="4" style={{ textAlign: 'center', padding: '20px' }}>No hay planes creados.</td></tr>
+                      ) : planes.map(plan => (
+                        <tr key={plan.id}>
+                          <td style={{ fontWeight: 600, color: isDark ? '#fff' : '#0f172a' }}>{plan.name}</td>
+                          <td><span className="badge badge-indigo">{plan.duration_months} {plan.duration_months === 1 ? 'mes' : 'meses'}</span></td>
+                          <td style={{ color: '#94a3b8', fontSize: '0.85rem' }}>{plan.created_at ? new Date(plan.created_at).toLocaleDateString() : '-'}</td>
+                          <td style={{ textAlign: 'right', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                            <button className="edit-btn" onClick={async () => {
+                              const newName = prompt('Nuevo nombre:', plan.name);
+                              if (!newName) return;
+                              const newMonths = prompt('Nueva duración (meses):', plan.duration_months);
+                              if (!newMonths || isNaN(newMonths)) return;
+                              const { error } = await supabase.from('planes').update({ name: newName, duration_months: parseInt(newMonths) }).eq('id', plan.id);
+                              if (error) { alert('Error: ' + error.message); } else { fetchPlanes(); }
+                            }}><Edit3 size={14} /> Editar</button>
+                            <button className="edit-btn" style={{ color: '#ef4444' }} onClick={async () => {
+                              if (!window.confirm(`¿Eliminar el plan "${plan.name}"? Se borrarán también los precios asociados.`)) return;
+                              await supabase.from('precios_planes').delete().eq('plan_id', plan.id);
+                              const { error } = await supabase.from('planes').delete().eq('id', plan.id);
+                              if (error) { alert('Error: ' + error.message); } else { fetchPlanes(); fetchPreciosPlanes(); }
+                            }}><Trash2 size={14} /></button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              {/* SECCIÓN: PRECIOS POR LOCALIDAD */}
+              <section className="table-section animate-in" style={{ animationDelay: '0.4s', marginBottom: '24px' }}>
+                <div className="table-header">
+                  <h3 className="font-outfit">💰 Precios por Localidad</h3>
+                </div>
+                <div className="table-wrapper">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Localidad</th>
+                        {planes.map(p => <th key={p.id}>{p.name} ({p.duration_months}m)</th>)}
+                        <th style={{ textAlign: 'right' }}>Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {localities.length === 0 ? (
+                        <tr><td colSpan={planes.length + 2} style={{ textAlign: 'center', padding: '20px' }}>No hay localidades.</td></tr>
+                      ) : localities.map(loc => (
+                        <tr key={loc.id}>
+                          <td style={{ fontWeight: 600, color: isDark ? '#fff' : '#0f172a' }}>
+                            <div>{loc.name}</div>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{loc.province}</div>
+                          </td>
+                          {planes.map(p => {
+                            const pp = preciosPlanes.find(x => x.locality_id === loc.id && x.plan_id === p.id);
+                            return (
+                              <td key={p.id} style={{ fontWeight: 600, color: pp?.price ? (isDark ? '#34d399' : '#059669') : '#ef4444' }}>
+                                {pp?.price ? `$${Number(pp.price).toLocaleString()}` : 'Sin precio'}
+                              </td>
+                            );
+                          })}
+                          <td style={{ textAlign: 'right' }}>
+                            <button className="edit-btn" onClick={() => handleEditPrices(loc)} style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1' }}>
+                              <DollarSign size={14} /> Editar Precios
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              {/* SECCIÓN: COMISIONES DE FRANQUICIAS */}
+              <section className="table-section animate-in" style={{ animationDelay: '0.5s', marginBottom: '24px' }}>
+                <div className="table-header">
+                  <h3 className="font-outfit">🏢 Comisiones de Franquicias</h3>
+                </div>
+                <div className="table-wrapper">
+                  <table className="data-table">
+                    <thead><tr><th>Localidad</th><th>Provincia</th><th>Comisión Central</th><th>Estado</th><th style={{ textAlign: 'right' }}>Acciones</th></tr></thead>
+                    <tbody>
+                      {localities.map(loc => (
+                        <tr key={loc.id}>
+                          <td style={{ fontWeight: 600, color: isDark ? '#fff' : '#0f172a' }}>{loc.name}</td>
+                          <td style={{ color: '#94a3b8' }}>{loc.province}</td>
+                          <td>
+                            <span style={{ fontWeight: 700, fontSize: '1.1rem', color: '#fb7185' }}>{loc.commission_percentage || 0}%</span>
+                          </td>
+                          <td>
+                            <div className={`status ${loc.status === 'active' ? 'active' : loc.status === 'pending' ? 'pending' : 'overdue'}`}>
+                              <span className={`status-dot ${loc.status === 'active' ? 'active' : loc.status === 'pending' ? 'pending' : 'overdue'}`}></span>
+                              {loc.status === 'active' ? 'Operativa' : loc.status === 'pending' ? 'Pendiente' : 'Inactiva'}
+                            </div>
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <button className="edit-btn" onClick={async () => {
+                              const newComm = prompt(`Comisión central para ${loc.name} (% actual: ${loc.commission_percentage || 0}):`, loc.commission_percentage || 0);
+                              if (newComm === null || isNaN(newComm)) return;
+                              const { error } = await supabase.from('localidades').update({ commission_percentage: parseFloat(newComm) }).eq('id', loc.id);
+                              if (error) { alert('Error: ' + error.message); } else { fetchLocalities(); }
+                            }}>
+                              <Edit3 size={14} /> Cambiar %
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              {/* SECCIÓN: PERSONALIZACIÓN DE GRÁFICAS */}
+              <section className="table-section animate-in" style={{ animationDelay: '0.6s' }}>
+                <div className="table-header">
+                  <h3 className="font-outfit">🎨 Personalización Visual</h3>
+                </div>
+                <div style={{ padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                    <div style={{ padding: '20px', borderRadius: '16px', background: isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}` }}>
+                      <h4 style={{ color: isDark ? '#fff' : '#0f172a', fontSize: '0.95rem', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}><Palette size={18} color="#6366f1" /> Colores del Dashboard</h4>
+                      <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '16px' }}>Define los colores primarios de las tarjetas y gráficas del panel administrativo.</p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {[
+                          { label: 'Primario (Indigo)', color: '#6366f1', desc: 'Botones, sidebar activo, badges' },
+                          { label: 'Éxito (Esmeralda)', color: '#10b981', desc: 'Estados activos, ingresos' },
+                          { label: 'Alerta (Rosa)', color: '#ec4899', desc: 'Comisiones, alertas, vencidos' },
+                          { label: 'Advertencia (Ámbar)', color: '#f59e0b', desc: 'Pendientes, revisiones' }
+                        ].map((item, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px', borderRadius: '10px', background: isDark ? 'rgba(255,255,255,0.02)' : '#fff' }}>
+                            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: item.color, flexShrink: 0 }}></div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: isDark ? '#e2e8f0' : '#1e293b' }}>{item.label}</div>
+                              <div style={{ fontSize: '0.7rem', color: '#64748b' }}>{item.desc}</div>
+                            </div>
+                            <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontFamily: 'monospace' }}>{item.color}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ padding: '20px', borderRadius: '16px', background: isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}` }}>
+                      <h4 style={{ color: isDark ? '#fff' : '#0f172a', fontSize: '0.95rem', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}><Settings size={18} color="#10b981" /> Configuración General</h4>
+                      <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '16px' }}>Ajustes generales del sistema D'Compras.</p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        <div>
+                          <label style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '6px', display: 'block' }}>Nombre de la Plataforma</label>
+                          <input type="text" defaultValue="D'Compras" disabled style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#fff', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none', opacity: 0.7 }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '6px', display: 'block' }}>Moneda por Defecto</label>
+                          <input type="text" defaultValue="ARS ($)" disabled style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#fff', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none', opacity: 0.7 }} />
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.02)' : '#fff', border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}` }}>
+                          <div>
+                            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: isDark ? '#e2e8f0' : '#1e293b' }}>Modo Oscuro por Defecto</div>
+                            <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Tema inicial al cargar la app</div>
+                          </div>
+                          <div onClick={toggleTheme} style={{ width: '44px', height: '24px', background: isDark ? '#6366f1' : '#cbd5e1', borderRadius: '20px', position: 'relative', cursor: 'pointer', transition: 'background 0.3s' }}>
+                            <div style={{ width: '20px', height: '20px', background: '#fff', borderRadius: '50%', position: 'absolute', top: '2px', transition: 'all 0.3s', left: isDark ? '22px' : '2px' }}></div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderRadius: '12px', background: isDark ? 'rgba(16,185,129,0.06)' : '#ecfdf5', border: '1px solid rgba(16,185,129,0.15)' }}>
+                          <div>
+                            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#10b981' }}>Estado del Sistema</div>
+                            <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Todos los servicios operativos</div>
+                          </div>
+                          <CheckCircle size={22} color="#10b981" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </>
+          )}
+
+          {/* MODAL PRECIOS POR CIUDAD (GLOBAL) */}
+          {showPriceModal && (
+            <div className="gallery-modal" style={{ justifyContent: 'center', alignItems: 'center' }}>
+              <div style={{ background: isDark ? '#0f172a' : '#ffffff', padding: '32px', borderRadius: '24px', width: '100%', maxWidth: '400px', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}`, boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
+                <div className="gallery-header" style={{ marginBottom: '20px' }}>
+                  <div>
+                    <h3 className="font-outfit" style={{ color: isDark ? '#fff' : '#0f172a', margin: 0 }}>Precios en {editingPriceLocality?.name}</h3>
+                    <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '4px 0 0 0' }}>Configura los costos para esta franquicia</p>
+                  </div>
+                  <div className="close-gallery" onClick={() => setShowPriceModal(false)}><X size={24} /></div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {isLoadingPlanes ? (
+                    <div style={{ textAlign: 'center', padding: '20px', color: '#6366f1' }}>Cargando planes...</div>
+                  ) : planesError ? (
+                    <div style={{ textAlign: 'center', padding: '20px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '12px', color: '#ef4444', fontSize: '0.9rem' }}>⚠️ Error: {planesError}</div>
+                  ) : planes.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '20px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '12px', color: '#ef4444', fontSize: '0.9rem' }}>⚠️ No se encontraron planes.</div>
+                  ) : planes.map(plan => (
+                    <div key={plan.id}>
+                      <label style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '6px', display: 'block' }}>Plan {plan.name} ({plan.duration_months} meses)</label>
+                      <div style={{ position: 'relative' }}>
+                        <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }}>$</span>
+                        <input type="number" value={tempPrices[plan.id] || 0} onChange={e => setTempPrices({ ...tempPrices, [plan.id]: e.target.value })} style={{ width: '100%', padding: '12px 16px 12px 30px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none' }} />
+                      </div>
+                    </div>
+                  ))}
+                  <button onClick={handleSavePrices} disabled={isSavingPrices} className="action-btn primary" style={{ marginTop: '10px', padding: '14px', fontSize: '0.9rem', opacity: isSavingPrices ? 0.6 : 1, cursor: 'pointer' }}>
+                    {isSavingPrices ? 'Guardando...' : 'Actualizar Precios en la Ciudad'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: MÉTRICAS E INFORMES (SÓLO LOCAL ADMIN) */}
+          {activeTab === 'metrics' && (
+            <>
+              <div className="stats-grid animate-in">
+                <div className="stat-card">
+                  <div className="stat-card-header">
+                    <div className="stat-icon indigo">
+                      <Store size={22} />
+                    </div>
+                  </div>
+                  <div className="stat-label">Comercios en {assignedLocality}</div>
+                  <div className="stat-value">
+                    {commerceData.filter(c => c.loc === assignedLocality).length}
+                  </div>
+                </div>
+
+                <div className="stat-card">
+                  <div className="stat-card-header">
+                    <div className="stat-icon emerald">
+                      <TrendingUp size={22} />
+                    </div>
+                  </div>
+                  <div className="stat-label">Ingresos Totales Estimados</div>
+                  <div className="stat-value">
+                    $185,000
+                  </div>
+                </div>
+
+                <div className="stat-card">
+                  <div className="stat-card-header">
+                    <div className="stat-icon pink">
+                      <Building size={22} />
+                    </div>
+                  </div>
+                  <div className="stat-label">Comisión Central ({localities.find(l => l.id === assignedLocalityId)?.commission_percentage || 20}%)</div>
+                  <div className="stat-value">
+                    ${((185000 * (localities.find(l => l.id === assignedLocalityId)?.commission_percentage || 20)) / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
+                <div className="table-section animate-in" style={{ animationDelay: '0.1s' }}>
+                  <div className="table-header">
+                    <h3 className="font-outfit">📊 Distribución por Categorías</h3>
+                  </div>
+                  <div style={{ padding: '24px 32px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      {[
+                        { label: 'Gastronomía', count: commerceData.filter(c => c.loc === assignedLocality && c.cat === 'Gastronomía').length, pct: 45, color: '#6366f1' },
+                        { label: 'Salud', count: commerceData.filter(c => c.loc === assignedLocality && c.cat === 'Salud').length, pct: 25, color: '#10b981' },
+                        { label: 'Varios', count: commerceData.filter(c => c.loc === assignedLocality && c.cat === 'Varios').length, pct: 15, color: '#f59e0b' },
+                        { label: 'Otros', count: 0, pct: 15, color: '#ec4899' }
+                      ].map((item, i) => (
+                        <div key={i}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '6px', color: isDark ? '#cbd5e1' : '#1e293b' }}>
+                            <span style={{ fontWeight: 600 }}>{item.label}</span>
+                            <span>{item.count} comercios ({item.pct}%)</span>
+                          </div>
+                          <div style={{ width: '100%', height: '8px', background: isDark ? 'rgba(255,255,255,0.05)' : '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+                            <div style={{ width: `${item.pct}%`, height: '100%', background: item.color, borderRadius: '4px' }}></div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="table-section animate-in" style={{ animationDelay: '0.2s' }}>
+                  <div className="table-header">
+                    <h3 className="font-outfit">💼 Resumen de Comisión</h3>
+                  </div>
+                  <div style={{ padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', fontWeight: 600 }}>
+                        <span>Neto Franquiciado (Tu Ganancia)</span>
+                        <span style={{ color: '#10b981' }}>{100 - (localities.find(l => l.id === assignedLocalityId)?.commission_percentage || 20)}%</span>
+                      </div>
+                      <div style={{ width: '100%', height: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#e2e8f0', borderRadius: '6px', overflow: 'hidden', display: 'flex' }}>
+                        <div style={{ width: `${100 - (localities.find(l => l.id === assignedLocalityId)?.commission_percentage || 20)}%`, background: '#10b981' }}></div>
+                        <div style={{ width: `${localities.find(l => l.id === assignedLocalityId)?.commission_percentage || 20}%`, background: '#fb7185' }}></div>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>
+                        <span>Tu parte: ${(185000 * (100 - (localities.find(l => l.id === assignedLocalityId)?.commission_percentage || 20)) / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        <span>Central: ${((185000 * (localities.find(l => l.id === assignedLocalityId)?.commission_percentage || 20)) / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                      </div>
+                    </div>
+                    <div style={{ borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}`, paddingTop: '16px', fontSize: '0.8rem', color: '#64748b', lineHeight: '1.4' }}>
+                      💡 Las métricas se actualizan de forma automática según los pagos y suscripciones de comercios que registres para la localidad de <strong>{assignedLocality}</strong>.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* TAB: PLANES (SÓLO LOCAL ADMIN) */}
+          {activeTab === 'planes_local' && (
+            <>
+              <div style={{ background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)', borderRadius: '16px', padding: '24px 32px', color: '#fff', marginBottom: '24px' }}>
+                <h3 className="font-outfit" style={{ fontSize: '1.4rem', margin: '0 0 8px 0' }}>Suscripciones y Planes Disponibles</h3>
+                <p style={{ margin: 0, opacity: 0.9, fontSize: '0.9rem' }}>Consulta las tarifas de planes configuradas para tu localidad y el reparto de comisiones de tu franquicia.</p>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+                <div className="table-section animate-in">
+                  <div className="table-header">
+                    <h3 className="font-outfit">💳 Planes y Precios en {assignedLocality}</h3>
+                  </div>
+                  <div className="table-wrapper">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Plan</th>
+                          <th>Duración</th>
+                          <th>Precio Configurado</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {planes.length === 0 ? (
+                          <tr><td colSpan="3" style={{ textAlign: 'center', padding: '20px' }}>No hay planes de suscripción activos.</td></tr>
+                        ) : planes.map(plan => {
+                          const pp = preciosPlanes.find(x => x.locality_id === assignedLocalityId && x.plan_id === plan.id);
+                          return (
+                            <tr key={plan.id}>
+                              <td style={{ fontWeight: 600, color: isDark ? '#fff' : '#0f172a' }}>{plan.name}</td>
+                              <td><span className="badge badge-indigo">{plan.duration_months} {plan.duration_months === 1 ? 'mes' : 'meses'}</span></td>
+                              <td style={{ fontWeight: 600, color: pp?.price ? (isDark ? '#34d399' : '#059669') : '#ef4444' }}>
+                                {pp?.price ? `$${Number(pp.price).toLocaleString()}` : 'Sin precio configurado'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="table-section animate-in" style={{ animationDelay: '0.1s' }}>
+                  <div className="table-header">
+                    <h3 className="font-outfit">Franquicia e Ingresos</h3>
+                  </div>
+                  <div style={{ padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div style={{ padding: '16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}` }}>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b', display: 'block', marginBottom: '4px' }}>Comisión Central Asignada</span>
+                      <strong style={{ fontSize: '1.8rem', color: '#fb7185' }}>{localities.find(l => l.id === assignedLocalityId)?.commission_percentage || 20}%</strong>
+                    </div>
+
+                    <div style={{ padding: '16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}` }}>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b', display: 'block', marginBottom: '4px' }}>Tus Ingresos Netos</span>
+                      <strong style={{ fontSize: '1.8rem', color: '#34d399' }}>{100 - (localities.find(l => l.id === assignedLocalityId)?.commission_percentage || 20)}%</strong>
+                    </div>
+
+                    <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0, lineHeight: '1.4' }}>
+                      ⚠️ <strong>Nota:</strong> Los precios y las comisiones son establecidos de manera centralizada por el Administrador General. Si necesitas modificar alguna tarifa, por favor contáctate con el soporte central de D'Compras.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
           <footer className="footer"><p className="footer-main">D'Compras © 2026</p><p className="footer-powered">Powered By <span>Digimedios Apps</span></p></footer>
         </main>
       </div>
@@ -1876,12 +2605,19 @@ function App() {
               <MapPin size={14} /> <span style={{ fontSize: '0.85rem', fontWeight: '500' }}>{currentLocalityName}</span>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button className="theme-toggle" onClick={toggleTheme} style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>{isDark ? <Sun size={20} color="#fff" /> : <Moon size={20} color="#0f172a" />}</button>
-            <select value={view} onChange={(e) => setView(e.target.value)} style={{ background: 'rgba(255,255,255,0.1)', color: isDark ? '#fff' : '#0f172a', border: 'none', borderRadius: '10px', padding: '5px', cursor: 'pointer', outline: 'none', colorScheme: isDark ? 'dark' : 'light' }}>
-              <option value="public" style={{ color: isDark ? '#000' : 'inherit' }}>📱</option>
-              <option value="admin" style={{ color: isDark ? '#000' : 'inherit' }}>💻</option>
-            </select>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <button className="theme-toggle" onClick={toggleTheme} style={{ background: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', border: 'none', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
+              {isDark ? <Sun size={18} color="#fff" /> : <Moon size={18} color="#0f172a" />}
+            </button>
+            {session ? (
+              <button onClick={() => setView('admin')} style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff', border: 'none', borderRadius: '10px', padding: '8px 14px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' }}>
+                <LayoutDashboard size={14} /> Panel
+              </button>
+            ) : (
+              <button onClick={() => setView('login')} style={{ background: isDark ? 'rgba(255,255,255,0.08)' : '#f1f5f9', color: isDark ? '#fff' : '#0f172a', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, borderRadius: '10px', padding: '8px 14px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}>
+                <LogIn size={14} /> Acceso
+              </button>
+            )}
           </div>
         </header>
 
@@ -2109,8 +2845,10 @@ function App() {
               </div>
               <button
                 onClick={() => {
-                  const phone = currentLocalityData.contact_whatsapp || '5493775473317'; // Fallback a central si no hay local
-                  window.open(`https://wa.me/${phone}`, '_blank');
+                  // Se prioriza el WhatsApp de Contacto y se cae hacia el Administrador antes de recurrir al soporte Central
+                  const rawPhone = String(currentLocalityData.contact_whatsapp || currentLocalityData.admin_whatsapp || '5493775473317').replace(/\D/g, '');
+                  const finalPhone = rawPhone.startsWith('549') ? rawPhone : `549${rawPhone}`;
+                  window.open(`https://wa.me/${finalPhone}`, '_blank');
                 }}
                 className="action-btn primary"
                 style={{ width: '100%', padding: '16px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', background: '#25D366' }}
@@ -2156,7 +2894,7 @@ function App() {
                   </p>
                 )}
 
-                <div style={{ display: 'flex', gap: '12px', marginBottom: '10px' }}>
+                <div style={{ display: 'flex', gap: '12px', marginBottom: '10px', flexWrap: 'wrap' }}>
                   {selectedBusiness.instagram_url && (
                     <button
                       onClick={() => {
@@ -2177,6 +2915,17 @@ function App() {
                       style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 15px', borderRadius: '12px', background: '#1877F2', color: '#fff', border: 'none', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer' }}
                     >
                       <Globe size={18} /> Facebook
+                    </button>
+                  )}
+                  {selectedBusiness.website_url && (
+                    <button
+                      onClick={() => {
+                        const url = selectedBusiness.website_url.startsWith('http') ? selectedBusiness.website_url : `https://${selectedBusiness.website_url}`;
+                        window.open(url, '_blank');
+                      }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 15px', borderRadius: '12px', background: isDark ? 'linear-gradient(135deg, #334155 0%, #1e293b 100%)' : 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', color: '#fff', border: isDark ? '1px solid rgba(255,255,255,0.1)' : 'none', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                    >
+                      <Globe size={18} /> Sitio Web
                     </button>
                   )}
                 </div>
@@ -2268,7 +3017,19 @@ function App() {
           </div>
           <div>
             <label style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '6px', display: 'block' }}>Contraseña</label>
-            <input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="••••••••" required style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none' }} />
+            <div style={{ position: 'relative' }}>
+              <input 
+                type={showPassLogin ? "text" : "password"} 
+                value={loginPassword} 
+                onChange={e => setLoginPassword(e.target.value)} 
+                placeholder="••••••••" 
+                required 
+                style={{ width: '100%', padding: '14px 45px 14px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none' }} 
+              />
+              <button type="button" onClick={() => setShowPassLogin(!showPassLogin)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {showPassLogin ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
           </div>
           {loginError && <div style={{ color: '#ef4444', fontSize: '0.85rem', textAlign: 'center', background: 'rgba(239,68,68,0.1)', padding: '10px', borderRadius: '8px' }}>{loginError.includes('Invalid') ? 'Credenciales incorrectas' : loginError}</div>}
           <button type="submit" className="action-btn primary" style={{ padding: '16px', fontSize: '1rem', marginTop: '10px' }}>Ingresar al Sistema</button>
