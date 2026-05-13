@@ -453,7 +453,7 @@ function App() {
       // Robust UUID generator fallback just in case browser lacks crypto.randomUUID in insecure context
       const generateUUID = () => {
         if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
           const r = Math.random() * 16 | 0;
           const v = c === 'x' ? r : (r & 0x3 | 0x8);
           return v.toString(16);
@@ -461,7 +461,7 @@ function App() {
       };
 
       const localityId = editingLocalityId || generateUUID();
-      
+
       const payload = {
         id: localityId,
         name: newLocName,
@@ -548,7 +548,7 @@ function App() {
       setNewLocAdminName('');
       setNewLocAdminEmail('');
       setNewLocAdminPassword('');
-      
+
       await fetchLocalities();
       await fetchUsersList();
 
@@ -991,9 +991,9 @@ function App() {
       { id: 'planes_local', label: 'Planes', icon: CreditCard, roles: ['localadmin'] },
     ].filter(item => item.roles.includes(userRole));
 
-    const filteredCommerce = userRole === 'superadmin' ? comercios : 
-                             userRole === 'commerce' ? comercios.filter(c => c.id === assignedCommerceId) :
-                             comercios.filter(c => c.locality_id === assignedLocalityId);
+    const filteredCommerce = userRole === 'superadmin' ? comercios :
+      userRole === 'commerce' ? comercios.filter(c => c.id === assignedCommerceId) :
+        comercios.filter(c => c.locality_id === assignedLocalityId);
 
     const displayUsers = userRole === 'superadmin' ? usersList : usersList.filter(u => {
       if (u.role !== 'Comercio') return false;
@@ -1001,8 +1001,8 @@ function App() {
       return userCommerce?.locality_id === assignedLocalityId;
     });
 
-    const countAdmins = userRole === 'superadmin' 
-      ? usersList.filter(u => u.role === 'Super Admin' || u.role === 'Admin Local').length 
+    const countAdmins = userRole === 'superadmin'
+      ? usersList.filter(u => u.role === 'Super Admin' || u.role === 'Admin Local').length
       : 1;
     const countCommerces = displayUsers.filter(u => u.role === 'Comercio').length;
     const countExtended = displayUsers.filter(u => u.has_extended_permissions).length;
@@ -1100,22 +1100,22 @@ function App() {
                         .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
                         .slice(0, 5)
                         .map((item, i) => (
-                        <tr key={item.id || i}>
-                          <td className="commerce-name">{item.name}</td>
-                          {userRole === 'superadmin' && <td className="commerce-loc">{item.localidades?.name || '-'}</td>}
-                          <td><span className={`badge ${item.rubros?.badge_color || 'badge-indigo'}`}>{item.rubros?.name || '-'}</span></td>
-                          <td style={{ fontSize: '0.85rem', color: item.expiration_date && new Date(item.expiration_date) < new Date() ? '#fb7185' : (isDark ? '#cbd5e1' : '#64748b') }}>
-                            {item.expiration_date ? new Date(item.expiration_date).toLocaleDateString() : 'Sin plan'}
-                          </td>
-                          <td><div className={`status ${item.status}`}><span className={`status-dot ${item.status}`}></span>{item.status === 'active' ? 'Activo' : 'Pendiente'}</div></td>
-                          <td style={{ textAlign: 'right' }}>
-                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                              <button className="edit-btn" onClick={() => handleEditCommerceClick(item)}>Editar</button>
-                              <button className="delete-btn" title="Eliminar comercio" onClick={() => handleDeleteCommerce(item)}><Trash2 size={16} /></button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                          <tr key={item.id || i}>
+                            <td className="commerce-name">{item.name}</td>
+                            {userRole === 'superadmin' && <td className="commerce-loc">{item.localidades?.name || '-'}</td>}
+                            <td><span className={`badge ${item.rubros?.badge_color || 'badge-indigo'}`}>{item.rubros?.name || '-'}</span></td>
+                            <td style={{ fontSize: '0.85rem', color: item.expiration_date && new Date(item.expiration_date) < new Date() ? '#fb7185' : (isDark ? '#cbd5e1' : '#64748b') }}>
+                              {item.expiration_date ? new Date(item.expiration_date).toLocaleDateString() : 'Sin plan'}
+                            </td>
+                            <td><div className={`status ${item.status}`}><span className={`status-dot ${item.status}`}></span>{item.status === 'active' ? 'Activo' : 'Pendiente'}</div></td>
+                            <td style={{ textAlign: 'right' }}>
+                              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                <button className="edit-btn" onClick={() => handleEditCommerceClick(item)}>Editar</button>
+                                <button className="delete-btn" title="Eliminar comercio" onClick={() => handleDeleteCommerce(item)}><Trash2 size={16} /></button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
                     </tbody>
                   </table>
                 </div>
@@ -1239,84 +1239,84 @@ function App() {
               {userRole !== 'commerce' && (
                 <>
                   <div className="stats-grid">
-                <div className="stat-card animate-in"><div className="stat-card-header"><div className="stat-icon indigo"><Store size={22} /></div></div><div className="stat-label">Total Comercios</div><div className="stat-value">{filteredCommerce.length}</div></div>
-                <div className="stat-card animate-in" style={{ animationDelay: '0.1s' }}><div className="stat-card-header"><div className="stat-icon emerald"><TrendingUp size={22} /></div></div><div className="stat-label">Activos / Publicados</div><div className="stat-value">{filteredCommerce.filter(c => c.status === 'active').length}</div></div>
-                <div className="stat-card animate-in" style={{ animationDelay: '0.2s' }}><div className="stat-card-header"><div className="stat-icon amber"><Bell size={22} /></div></div><div className="stat-label">En Revisión</div><div className="stat-value">{filteredCommerce.filter(c => c.status === 'pending').length}</div></div>
-              </div>
+                    <div className="stat-card animate-in"><div className="stat-card-header"><div className="stat-icon indigo"><Store size={22} /></div></div><div className="stat-label">Total Comercios</div><div className="stat-value">{filteredCommerce.length}</div></div>
+                    <div className="stat-card animate-in" style={{ animationDelay: '0.1s' }}><div className="stat-card-header"><div className="stat-icon emerald"><TrendingUp size={22} /></div></div><div className="stat-label">Activos / Publicados</div><div className="stat-value">{filteredCommerce.filter(c => c.status === 'active').length}</div></div>
+                    <div className="stat-card animate-in" style={{ animationDelay: '0.2s' }}><div className="stat-card-header"><div className="stat-icon amber"><Bell size={22} /></div></div><div className="stat-label">En Revisión</div><div className="stat-value">{filteredCommerce.filter(c => c.status === 'pending').length}</div></div>
+                  </div>
 
-              {/* BUSCADOR INTELIGENTE */}
-              <div style={{ marginBottom: '20px', position: 'relative' }}>
-                <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
-                <input type="text" placeholder="Buscar comercio por nombre, rubro o dirección..." value={adminComerciosSearch} onChange={e => setAdminComerciosSearch(e.target.value)} style={{ width: '100%', padding: '14px 16px 14px 44px', borderRadius: '14px', background: isDark ? 'rgba(255,255,255,0.04)' : '#fff', border: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'}`, color: isDark ? '#e2e8f0' : '#0f172a', outline: 'none', fontSize: '0.9rem', fontFamily: 'Inter, sans-serif' }} />
-                {adminComerciosSearch && <div onClick={() => setAdminComerciosSearch('')} style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', color: '#94a3b8' }}><X size={16} /></div>}
-              </div>
+                  {/* BUSCADOR INTELIGENTE */}
+                  <div style={{ marginBottom: '20px', position: 'relative' }}>
+                    <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                    <input type="text" placeholder="Buscar comercio por nombre, rubro o dirección..." value={adminComerciosSearch} onChange={e => setAdminComerciosSearch(e.target.value)} style={{ width: '100%', padding: '14px 16px 14px 44px', borderRadius: '14px', background: isDark ? 'rgba(255,255,255,0.04)' : '#fff', border: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0'}`, color: isDark ? '#e2e8f0' : '#0f172a', outline: 'none', fontSize: '0.9rem', fontFamily: 'Inter, sans-serif' }} />
+                    {adminComerciosSearch && <div onClick={() => setAdminComerciosSearch('')} style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', color: '#94a3b8' }}><X size={16} /></div>}
+                  </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h3 className="font-outfit" style={{ color: isDark ? '#fff' : '#0f172a', margin: 0 }}>Directorio de Comercios</h3>
-                <button className="btn-add" onClick={() => { setEditingCommerceId(null); setNewComName(''); setNewComLocalityId(userRole === 'localadmin' ? assignedLocalityId : ''); setNewComRubroId(''); setNewComWhatsapp(''); setNewComAddress(''); setNewComMapsUrl(''); setNewComDescription(''); setNewComInstagram(''); setNewComFacebook(''); setNewComWebsite(''); setNewComMainImagePreview(null); setNewComMainImageFile(null); setGalleryItems([]); setShowCommerceModal(true); }}><Plus size={18} /> Alta de Comercio</button>
-              </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <h3 className="font-outfit" style={{ color: isDark ? '#fff' : '#0f172a', margin: 0 }}>Directorio de Comercios</h3>
+                    <button className="btn-add" onClick={() => { setEditingCommerceId(null); setNewComName(''); setNewComLocalityId(userRole === 'localadmin' ? assignedLocalityId : ''); setNewComRubroId(''); setNewComWhatsapp(''); setNewComAddress(''); setNewComMapsUrl(''); setNewComDescription(''); setNewComInstagram(''); setNewComFacebook(''); setNewComWebsite(''); setNewComMainImagePreview(null); setNewComMainImageFile(null); setGalleryItems([]); setShowCommerceModal(true); }}><Plus size={18} /> Alta de Comercio</button>
+                  </div>
 
-              {isLoadingComercios ? (
-                <div style={{ textAlign: 'center', padding: '40px', color: '#6366f1' }}>Cargando comercios...</div>
-              ) : (() => {
-                const searchQ = adminComerciosSearch.toLowerCase().trim();
-                const filtered = comercios.filter(c => {
-                  if (!searchQ) return true;
-                  return c.name?.toLowerCase().includes(searchQ) || c.rubros?.name?.toLowerCase().includes(searchQ) || c.address?.toLowerCase().includes(searchQ) || c.localidades?.name?.toLowerCase().includes(searchQ);
-                });
-                const grouped = localities.map(loc => ({ ...loc, items: filtered.filter(c => c.locality_id === loc.id) })).filter(g => g.items.length > 0);
-                const ungrouped = filtered.filter(c => !localities.find(l => l.id === c.locality_id));
-                if (grouped.length === 0 && ungrouped.length === 0) return <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>{searchQ ? `No se encontraron resultados para "${adminComerciosSearch}"` : 'No hay comercios aún.'}</div>;
-                return [...grouped.map(group => (
-                  <section key={group.id} className="table-section animate-in" style={{ marginBottom: '16px' }}>
-                    <div onClick={() => toggleLocalityCollapse('com_' + group.id)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 32px', cursor: 'pointer', borderBottom: collapsedLocalities['com_' + group.id] ? 'none' : `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}` }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <MapPin size={18} color="#6366f1" />
-                        <h3 className="font-outfit" style={{ margin: 0, color: isDark ? '#fff' : '#0f172a', fontSize: '1.1rem' }}>{group.name}</h3>
-                        <span className="badge badge-indigo">{group.items.length} comercios</span>
-                      </div>
-                      <span style={{ color: '#64748b', fontSize: '1.2rem', transition: 'transform 0.2s', transform: collapsedLocalities['com_' + group.id] ? 'rotate(-90deg)' : 'rotate(0)' }}>▾</span>
-                    </div>
-                    {!collapsedLocalities['com_' + group.id] && (
-                      <div className="table-wrapper">
-                        <table className="data-table">
-                          <thead><tr><th>Comercio</th><th>Rubro</th><th>Vencimiento</th><th>Estado</th><th style={{ textAlign: 'right' }}>Acciones</th></tr></thead>
-                          <tbody>
-                            {group.items.map((item, i) => (
-                              <tr key={item.id || i}>
-                                <td style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                  {item.main_image ? <img src={item.main_image} alt={item.name} style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}` }} /> : <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}><Store size={20} /></div>}
-                                  <div><div style={{ fontWeight: 600, color: isDark ? '#fff' : '#0f172a' }}>{item.name}</div>{item.address && <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{item.address}</span>}</div>
-                                </td>
-                                <td><span className={`badge ${item.rubros?.badge_color || 'badge-indigo'}`}>{item.rubros?.name || '-'}</span></td>
-                                <td>
-                                  <div style={{ fontSize: '0.85rem', color: item.expiration_date && new Date(item.expiration_date) < new Date() ? '#fb7185' : (isDark ? '#e2e8f0' : '#1e293b'), fontWeight: 500 }}>{item.expiration_date ? new Date(item.expiration_date).toLocaleDateString() : 'Sin plan'}</div>
-                                  {item.expiration_date && new Date(item.expiration_date) < new Date() && <div style={{ fontSize: '0.7rem', color: '#fb7185' }}>Vencida</div>}
-                                </td>
-                                <td><div className={`status ${item.status}`}><span className={`status-dot ${item.status}`}></span>{item.status === 'active' ? 'Publicado' : 'Revisión'}</div></td>
-                                <td style={{ textAlign: 'right' }}>
-                                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                                    <button className="edit-btn" onClick={() => handleEditCommerceClick(item)}>Gestionar</button>
-                                    <button className="delete-btn" title="Eliminar comercio" onClick={() => handleDeleteCommerce(item)}><Trash2 size={16} /></button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </section>
-                )), ungrouped.length > 0 && (
-                  <section key="ungrouped" className="table-section animate-in" style={{ marginBottom: '16px' }}>
-                    <div style={{ padding: '16px 32px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}` }}>
-                      <h3 className="font-outfit" style={{ margin: 0, color: '#94a3b8', fontSize: '1.1rem' }}>Sin localidad asignada</h3>
-                    </div>
-                    <div className="table-wrapper"><table className="data-table"><thead><tr><th>Comercio</th><th>Rubro</th><th>Vencimiento</th><th>Estado</th><th style={{ textAlign: 'right' }}>Acciones</th></tr></thead><tbody>{ungrouped.map((item, i) => (<tr key={item.id || i}><td style={{ fontWeight: 600, color: isDark ? '#fff' : '#0f172a' }}>{item.name}</td><td>-</td><td>-</td><td>-</td><td style={{ textAlign: 'right' }}><div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}><button className="edit-btn" onClick={() => handleEditCommerceClick(item)}>Gestionar</button><button className="delete-btn" title="Eliminar comercio" onClick={() => handleDeleteCommerce(item)}><Trash2 size={16} /></button></div></td></tr>))}</tbody></table></div>
-                  </section>
-                )];
-              })()}
-              </>
+                  {isLoadingComercios ? (
+                    <div style={{ textAlign: 'center', padding: '40px', color: '#6366f1' }}>Cargando comercios...</div>
+                  ) : (() => {
+                    const searchQ = adminComerciosSearch.toLowerCase().trim();
+                    const filtered = comercios.filter(c => {
+                      if (!searchQ) return true;
+                      return c.name?.toLowerCase().includes(searchQ) || c.rubros?.name?.toLowerCase().includes(searchQ) || c.address?.toLowerCase().includes(searchQ) || c.localidades?.name?.toLowerCase().includes(searchQ);
+                    });
+                    const grouped = localities.map(loc => ({ ...loc, items: filtered.filter(c => c.locality_id === loc.id) })).filter(g => g.items.length > 0);
+                    const ungrouped = filtered.filter(c => !localities.find(l => l.id === c.locality_id));
+                    if (grouped.length === 0 && ungrouped.length === 0) return <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>{searchQ ? `No se encontraron resultados para "${adminComerciosSearch}"` : 'No hay comercios aún.'}</div>;
+                    return [...grouped.map(group => (
+                      <section key={group.id} className="table-section animate-in" style={{ marginBottom: '16px' }}>
+                        <div onClick={() => toggleLocalityCollapse('com_' + group.id)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 32px', cursor: 'pointer', borderBottom: collapsedLocalities['com_' + group.id] ? 'none' : `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}` }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <MapPin size={18} color="#6366f1" />
+                            <h3 className="font-outfit" style={{ margin: 0, color: isDark ? '#fff' : '#0f172a', fontSize: '1.1rem' }}>{group.name}</h3>
+                            <span className="badge badge-indigo">{group.items.length} comercios</span>
+                          </div>
+                          <span style={{ color: '#64748b', fontSize: '1.2rem', transition: 'transform 0.2s', transform: collapsedLocalities['com_' + group.id] ? 'rotate(-90deg)' : 'rotate(0)' }}>▾</span>
+                        </div>
+                        {!collapsedLocalities['com_' + group.id] && (
+                          <div className="table-wrapper">
+                            <table className="data-table">
+                              <thead><tr><th>Comercio</th><th>Rubro</th><th>Vencimiento</th><th>Estado</th><th style={{ textAlign: 'right' }}>Acciones</th></tr></thead>
+                              <tbody>
+                                {group.items.map((item, i) => (
+                                  <tr key={item.id || i}>
+                                    <td style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                      {item.main_image ? <img src={item.main_image} alt={item.name} style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}` }} /> : <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}><Store size={20} /></div>}
+                                      <div><div style={{ fontWeight: 600, color: isDark ? '#fff' : '#0f172a' }}>{item.name}</div>{item.address && <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{item.address}</span>}</div>
+                                    </td>
+                                    <td><span className={`badge ${item.rubros?.badge_color || 'badge-indigo'}`}>{item.rubros?.name || '-'}</span></td>
+                                    <td>
+                                      <div style={{ fontSize: '0.85rem', color: item.expiration_date && new Date(item.expiration_date) < new Date() ? '#fb7185' : (isDark ? '#e2e8f0' : '#1e293b'), fontWeight: 500 }}>{item.expiration_date ? new Date(item.expiration_date).toLocaleDateString() : 'Sin plan'}</div>
+                                      {item.expiration_date && new Date(item.expiration_date) < new Date() && <div style={{ fontSize: '0.7rem', color: '#fb7185' }}>Vencida</div>}
+                                    </td>
+                                    <td><div className={`status ${item.status}`}><span className={`status-dot ${item.status}`}></span>{item.status === 'active' ? 'Publicado' : 'Revisión'}</div></td>
+                                    <td style={{ textAlign: 'right' }}>
+                                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                        <button className="edit-btn" onClick={() => handleEditCommerceClick(item)}>Gestionar</button>
+                                        <button className="delete-btn" title="Eliminar comercio" onClick={() => handleDeleteCommerce(item)}><Trash2 size={16} /></button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </section>
+                    )), ungrouped.length > 0 && (
+                      <section key="ungrouped" className="table-section animate-in" style={{ marginBottom: '16px' }}>
+                        <div style={{ padding: '16px 32px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}` }}>
+                          <h3 className="font-outfit" style={{ margin: 0, color: '#94a3b8', fontSize: '1.1rem' }}>Sin localidad asignada</h3>
+                        </div>
+                        <div className="table-wrapper"><table className="data-table"><thead><tr><th>Comercio</th><th>Rubro</th><th>Vencimiento</th><th>Estado</th><th style={{ textAlign: 'right' }}>Acciones</th></tr></thead><tbody>{ungrouped.map((item, i) => (<tr key={item.id || i}><td style={{ fontWeight: 600, color: isDark ? '#fff' : '#0f172a' }}>{item.name}</td><td>-</td><td>-</td><td>-</td><td style={{ textAlign: 'right' }}><div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}><button className="edit-btn" onClick={() => handleEditCommerceClick(item)}>Gestionar</button><button className="delete-btn" title="Eliminar comercio" onClick={() => handleDeleteCommerce(item)}><Trash2 size={16} /></button></div></td></tr>))}</tbody></table></div>
+                      </section>
+                    )];
+                  })()}
+                </>
               )}
 
               {userRole === 'commerce' && (
@@ -1357,10 +1357,10 @@ function App() {
                         </div>
                         <div>
                           <label style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '6px', display: 'block' }}>Localidad</label>
-                          <select 
+                          <select
                             disabled={userRole === 'localadmin'}
-                            value={newComLocalityId} 
-                            onChange={e => setNewComLocalityId(e.target.value)} 
+                            value={newComLocalityId}
+                            onChange={e => setNewComLocalityId(e.target.value)}
                             style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none', colorScheme: isDark ? 'dark' : 'light', opacity: userRole === 'localadmin' ? 0.8 : 1 }}
                           >
                             <option value="" style={{ color: isDark ? '#000' : 'inherit' }}>Seleccionar Localidad</option>
@@ -1461,7 +1461,7 @@ function App() {
                         </div>
                         <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Podés subir hasta 6 fotos adicionales para la galería de este comercio.</span>
                       </div>
- 
+
                       {/* GESTION DE PLAN / VENCIMIENTO */}
                       {editingCommerceId && (
                         <div style={{ marginTop: '20px', padding: '16px', borderRadius: '16px', background: isDark ? 'rgba(99, 102, 241, 0.05)' : '#eff6ff', border: `1px dashed ${isDark ? 'rgba(99, 102, 241, 0.4)' : '#6366f1'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1478,14 +1478,14 @@ function App() {
                               </div>
                             </div>
                           </div>
-                          <button 
-                            type="button" 
+                          <button
+                            type="button"
                             onClick={() => {
                               setActiveTab('pagos');
                               setNewPagoCommerceId(editingCommerceId);
                               setPaymentTypeChoice('comercio');
                               setShowCommerceModal(false);
-                              setTimeout(() => setShowPagoModal(true), 150); 
+                              setTimeout(() => setShowPagoModal(true), 150);
                             }}
                             style={{ padding: '10px 18px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)' }}
                           >
@@ -1678,12 +1678,12 @@ function App() {
                       <div>
                         <label style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '6px', display: 'block' }}>Contraseña de Acceso (Opcional - Para crear login)</label>
                         <div style={{ position: 'relative' }}>
-                          <input 
-                            type={showPassLocAdmin ? "text" : "password"} 
-                            placeholder="Crear contraseña para el encargado" 
-                            value={newLocAdminPassword} 
-                            onChange={e => setNewLocAdminPassword(e.target.value)} 
-                            style={{ width: '100%', padding: '12px 45px 12px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none' }} 
+                          <input
+                            type={showPassLocAdmin ? "text" : "password"}
+                            placeholder="Crear contraseña para el encargado"
+                            value={newLocAdminPassword}
+                            onChange={e => setNewLocAdminPassword(e.target.value)}
+                            style={{ width: '100%', padding: '12px 45px 12px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none' }}
                           />
                           <button type="button" onClick={() => setShowPassLocAdmin(!showPassLocAdmin)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             {showPassLocAdmin ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -2082,12 +2082,12 @@ function App() {
                         <div>
                           <label style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '6px', display: 'block' }}>Contraseña de Acceso</label>
                           <div style={{ position: 'relative' }}>
-                            <input 
-                              type={showPassUser ? "text" : "password"} 
-                              placeholder="Mínimo 6 caracteres" 
-                              value={newUserPassword} 
-                              onChange={e => setNewUserPassword(e.target.value)} 
-                              style={{ width: '100%', padding: '12px 45px 12px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none' }} 
+                            <input
+                              type={showPassUser ? "text" : "password"}
+                              placeholder="Mínimo 6 caracteres"
+                              value={newUserPassword}
+                              onChange={e => setNewUserPassword(e.target.value)}
+                              style={{ width: '100%', padding: '12px 45px 12px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none' }}
                             />
                             <button type="button" onClick={() => setShowPassUser(!showPassUser)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                               {showPassUser ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -3018,13 +3018,13 @@ function App() {
           <div>
             <label style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '6px', display: 'block' }}>Contraseña</label>
             <div style={{ position: 'relative' }}>
-              <input 
-                type={showPassLogin ? "text" : "password"} 
-                value={loginPassword} 
-                onChange={e => setLoginPassword(e.target.value)} 
-                placeholder="••••••••" 
-                required 
-                style={{ width: '100%', padding: '14px 45px 14px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none' }} 
+              <input
+                type={showPassLogin ? "text" : "password"}
+                value={loginPassword}
+                onChange={e => setLoginPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                style={{ width: '100%', padding: '14px 45px 14px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none' }}
               />
               <button type="button" onClick={() => setShowPassLogin(!showPassLogin)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {showPassLogin ? <EyeOff size={20} /> : <Eye size={20} />}
