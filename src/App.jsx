@@ -3029,29 +3029,32 @@ function App() {
         </nav>
 
         {/* IN-APP VIEWER MODAL (OVER ALL) */}
-        {viewerUrl && (
-          <div className="inapp-viewer-backdrop">
-            <div className="viewer-container">
-              <div style={{ padding: '15px 20px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: isDark ? '#1e293b' : '#f8fafc' }}>
-                <h3 className="font-outfit" style={{ margin: 0, color: isDark ? '#fff' : '#0f172a', fontSize: '1.1rem' }}>{viewerTitle}</h3>
-                <button onClick={() => setViewerUrl(null)} style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: 'none', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer' }}>
-                  <X size={18} />
-                </button>
-              </div>
-              <div style={{ flex: 1, position: 'relative', background: isDark ? '#0f172a' : '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                {viewerUrl.trim().startsWith('<') ? (
-                  <iframe srcDoc={viewerUrl} style={{ width: '100%', height: '100%', border: 'none' }} title={viewerTitle} allowFullScreen></iframe>
-                ) : (
-                  viewerUrl.match(/\.(jpeg|jpg|gif|png|webp|avif|jfif)(\?.*)?$/i) ? (
-                    <img src={viewerUrl} alt={viewerTitle} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }} />
+        {viewerUrl && (() => {
+          const sanitizedUrl = viewerUrl.trim().replace(/http:\/\//g, 'https://');
+          return (
+            <div className="inapp-viewer-backdrop">
+              <div className="viewer-container">
+                <div style={{ padding: '15px 20px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: isDark ? '#1e293b' : '#f8fafc' }}>
+                  <h3 className="font-outfit" style={{ margin: 0, color: isDark ? '#fff' : '#0f172a', fontSize: '1.1rem' }}>{viewerTitle}</h3>
+                  <button onClick={() => setViewerUrl(null)} style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: 'none', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer' }}>
+                    <X size={18} />
+                  </button>
+                </div>
+                <div style={{ flex: 1, position: 'relative', background: isDark ? '#0f172a' : '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                  {sanitizedUrl.startsWith('<') ? (
+                    <iframe srcDoc={sanitizedUrl} style={{ width: '100%', height: '100%', border: 'none' }} title={viewerTitle} allowFullScreen></iframe>
                   ) : (
-                    <iframe src={viewerUrl} style={{ width: '100%', height: '100%', border: 'none' }} title={viewerTitle} allowFullScreen></iframe>
-                  )
-                )}
+                    sanitizedUrl.match(/\.(jpeg|jpg|gif|png|webp|avif|jfif)(\?.*)?$/i) ? (
+                      <img src={sanitizedUrl} alt={viewerTitle} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }} />
+                    ) : (
+                      <iframe src={sanitizedUrl} style={{ width: '100%', height: '100%', border: 'none' }} title={viewerTitle} allowFullScreen></iframe>
+                    )
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
     );
   }
