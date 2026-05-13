@@ -197,8 +197,9 @@ function App() {
   const [isSavingPrices, setIsSavingPrices] = useState(false);
 
   // Estado In-App Viewer
-  const [viewerUrl, setViewerUrl] = useState(null);
   const [viewerTitle, setViewerTitle] = useState('');
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [showInstallModal, setShowInstallModal] = useState(false);
 
   useEffect(() => {
     // Escuchar la sesión actual
@@ -226,6 +227,21 @@ function App() {
     fetchPagos();
     fetchPreciosPlanes();
     fetchUsersList();
+
+    // PWA Install Prompt Logic
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      
+      // Mostrar el modal cada tanto (ej: cada 3 días)
+      const lastPrompt = localStorage.getItem('dcompras_install_prompt_last');
+      const now = Date.now();
+      const threeDays = 3 * 24 * 60 * 60 * 1000;
+      
+      if (!lastPrompt || (now - parseInt(lastPrompt)) > threeDays) {
+        setTimeout(() => setShowInstallModal(true), 5000); // Aparece a los 5 segundos
+      }
+    });
   }, []);
 
   const handleEditPrices = (loc) => {
@@ -2570,6 +2586,44 @@ function App() {
 
     return (
       <div className={`public-layout ${!isDark ? 'light-theme' : ''}`}>
+
+        {/* MODAL PWA INSTALL */}
+        {showInstallModal && deferredPrompt && (
+          <div className="gallery-modal" style={{ zIndex: 10000, justifyContent: 'center', alignItems: 'center' }}>
+            <div style={{ background: isDark ? '#0f172a' : '#ffffff', padding: '32px', borderRadius: '24px', width: '90%', maxWidth: '400px', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}`, boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)', textAlign: 'center' }}>
+              <div style={{ width: '80px', height: '80px', background: '#6366f1', borderRadius: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', margin: '0 auto 20px auto', boxShadow: '0 10px 15px -3px rgba(99, 102, 241, 0.4)' }}>
+                <Smartphone size={40} color="#fff" />
+              </div>
+              <h3 className="font-outfit" style={{ color: isDark ? '#fff' : '#0f172a', fontSize: '1.5rem', marginBottom: '10px' }}>¡Instala D'Compras!</h3>
+              <p style={{ color: '#64748b', marginBottom: '25px', lineHeight: '1.5' }}>Accede más rápido, recibe notificaciones y disfruta de una mejor experiencia instalando nuestra app en tu inicio.</p>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <button 
+                  onClick={async () => {
+                    setShowInstallModal(false);
+                    deferredPrompt.prompt();
+                    const { outcome } = await deferredPrompt.userChoice;
+                    if (outcome === 'accepted') setDeferredPrompt(null);
+                    localStorage.setItem('dcompras_install_prompt_last', Date.now().toString());
+                  }} 
+                  className="action-btn" 
+                  style={{ padding: '14px', borderRadius: '12px', fontWeight: 600 }}
+                >
+                  Instalar ahora
+                </button>
+                <button 
+                  onClick={() => {
+                    setShowInstallModal(false);
+                    localStorage.setItem('dcompras_install_prompt_last', Date.now().toString());
+                  }} 
+                  style={{ background: 'transparent', border: 'none', color: '#64748b', padding: '10px', cursor: 'pointer', fontSize: '0.9rem' }}
+                >
+                  Quizás más tarde
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* MODAL SELECTOR LOCALIDAD PÚBLICO */}
         {showPublicLocalityModal && (
