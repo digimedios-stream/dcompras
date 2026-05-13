@@ -197,6 +197,7 @@ function App() {
   const [isSavingPrices, setIsSavingPrices] = useState(false);
 
   // Estado In-App Viewer
+  const [viewerUrl, setViewerUrl] = useState(null);
   const [viewerTitle, setViewerTitle] = useState('');
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallModal, setShowInstallModal] = useState(false);
