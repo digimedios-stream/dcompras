@@ -74,6 +74,38 @@ const usersData = [
 
 
 function App() {
+  const APP_VERSION = '1.0.1'; // Incrementar este número para forzar limpieza de caché en todos los usuarios
+
+  useEffect(() => {
+    const savedVersion = localStorage.getItem('app_version');
+    if (savedVersion !== APP_VERSION) {
+      console.log('Nueva versión detectada. Limpiando caché...');
+      
+      // 1. Limpiar LocalStorage (manteniendo solo la nueva versión)
+      localStorage.clear();
+      localStorage.setItem('app_version', APP_VERSION);
+      
+      // 2. Limpiar Caches de Service Worker
+      if ('caches' in window) {
+        caches.keys().then((names) => {
+          for (let name of names) caches.delete(name);
+        });
+      }
+
+      // 3. Registrar Service Worker si no existe para asegurar control
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+          for (let registration of registrations) registration.update();
+        });
+      }
+      
+      // 4. Recarga forzada
+      setTimeout(() => {
+        window.location.reload(true);
+      }, 500);
+    }
+  }, []);
+
   const [view, setView] = useState('loading');
   const [userRole, setUserRole] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
