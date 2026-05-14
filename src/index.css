@@ -601,6 +601,31 @@ h1, h2, h3, h4, .font-outfit {
   color: #ef4444;
 }
 
+.action-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.action-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
+}
+
+.light-theme .action-icon-btn {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+
 /* ===== ANIMATIONS ===== */
 @keyframes fadeInUp {
   from {

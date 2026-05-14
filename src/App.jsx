@@ -217,6 +217,8 @@ function App() {
   const [newPagoFranchiseConcept, setNewPagoFranchiseConcept] = useState('');
   const [newPagoFranchiseAmount, setNewPagoFranchiseAmount] = useState('');
   const [activePagosSubTab, setActivePagosSubTab] = useState('comercios'); // comercios, franquicias
+  const [showPaymentDetails, setShowPaymentDetails] = useState(null);
+  const [editingPayment, setEditingPayment] = useState(null);
 
   useEffect(() => {
     localStorage.setItem('dcompras_pagos_franquicias', JSON.stringify(pagosFranquicias));
@@ -433,6 +435,22 @@ function App() {
     setIsLoadingPagos(false);
   };
 
+  const handleEditFranchisePayment = (item) => {
+    setEditingPayment(item);
+    setPaymentTypeChoice('franquicia');
+    const loc = localities.find(l => l.name === item.locality_name);
+    setNewPagoLocalityId(loc ? loc.id : '');
+    setNewPagoFranchiseConcept(item.concept);
+    setNewPagoFranchiseAmount(item.amount.toString());
+    setShowPagoModal(true);
+  };
+
+  const handleDeleteFranchisePayment = (id) => {
+    if (window.confirm('¿Estás seguro de eliminar este registro de pago?')) {
+      setPagosFranquicias(prev => prev.filter(p => p.id !== id));
+    }
+  };
+
   const handleSavePago = async () => {
     if (paymentTypeChoice === 'franquicia') {
       if (!newPagoLocalityId || !newPagoFranchiseConcept || !newPagoFranchiseAmount) {
@@ -441,20 +459,35 @@ function App() {
       }
       setIsSavingPago(true);
       const selectedLocality = localities.find(l => l.id == newPagoLocalityId);
-      const newFranchisePayment = {
-        id: Date.now().toString(),
-        locality_name: selectedLocality ? selectedLocality.name : 'Varios',
-        concept: newPagoFranchiseConcept,
-        amount: parseFloat(newPagoFranchiseAmount),
-        date: new Date().toISOString().split('T')[0]
-      };
-      setPagosFranquicias(prev => [newFranchisePayment, ...prev]);
+      
+      if (editingPayment) {
+        // ACTUALIZAR PAGO EXISTENTE
+        setPagosFranquicias(prev => prev.map(p => p.id === editingPayment.id ? {
+          ...p,
+          locality_name: selectedLocality ? selectedLocality.name : 'Varios',
+          concept: newPagoFranchiseConcept,
+          amount: parseFloat(newPagoFranchiseAmount)
+        } : p));
+        alert('Pago de franquicia actualizado correctamente.');
+      } else {
+        // NUEVO PAGO
+        const newFranchisePayment = {
+          id: Date.now().toString(),
+          locality_name: selectedLocality ? selectedLocality.name : 'Varios',
+          concept: newPagoFranchiseConcept,
+          amount: parseFloat(newPagoFranchiseAmount),
+          date: new Date().toISOString().split('T')[0]
+        };
+        setPagosFranquicias(prev => [newFranchisePayment, ...prev]);
+        alert('Pago de franquicia registrado correctamente.');
+      }
+      
       setIsSavingPago(false);
       setShowPagoModal(false);
+      setEditingPayment(null);
       setNewPagoLocalityId('');
       setNewPagoFranchiseConcept('');
       setNewPagoFranchiseAmount('');
-      alert('Pago de franquicia registrado correctamente.');
       return;
     }
 
@@ -1917,7 +1950,13 @@ function App() {
                               <td style={{ color: isDark ? '#e2e8f0' : '#1e293b', fontWeight: 500 }}>{item.concept}</td>
                               <td style={{ fontWeight: 600, color: '#10b981' }}>${item.amount?.toLocaleString()}</td>
                               <td style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{item.date}</td>
-                              <td style={{ textAlign: 'right' }}><button className="edit-btn">Detalle</button></td>
+                              <td style={{ textAlign: 'right' }}>
+                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                  <button className="edit-btn" onClick={() => setShowPaymentDetails(item)}>Detalle</button>
+                                  <button className="icon-btn action-icon-btn" onClick={() => handleEditFranchisePayment(item)} style={{ color: '#6366f1' }} title="Editar"><Edit3 size={16} /></button>
+                                  <button className="icon-btn action-icon-btn" onClick={() => handleDeleteFranchisePayment(item.id)} style={{ color: '#ef4444' }} title="Eliminar"><Trash2 size={16} /></button>
+                                </div>
+                              </td>
                             </tr>
                           ))
                         )}
@@ -1933,9 +1972,9 @@ function App() {
                   <div style={{ background: isDark ? '#0f172a' : '#ffffff', padding: '32px', borderRadius: '24px', width: '100%', maxWidth: '450px', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}`, boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
                     <div className="gallery-header" style={{ marginBottom: '20px' }}>
                       <h3 className="font-outfit" style={{ color: isDark ? '#fff' : '#0f172a' }}>
-                        {paymentTypeChoice === 'franquicia' ? 'Registrar Pago Franquicia' : 'Registrar Nuevo Pago'}
+                        {paymentTypeChoice === 'franquicia' ? (editingPayment ? 'Editar Pago Franquicia' : 'Registrar Pago Franquicia') : (editingPayment ? 'Editar Pago' : 'Registrar Nuevo Pago')}
                       </h3>
-                      <div className="close-gallery" onClick={() => setShowPagoModal(false)}><X size={24} /></div>
+                      <div className="close-gallery" onClick={() => { setShowPagoModal(false); setEditingPayment(null); }}><X size={24} /></div>
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -2055,7 +2094,7 @@ function App() {
                         className="action-btn primary"
                         style={{ padding: '16px', fontSize: '0.95rem', opacity: isSavingPago ? 0.6 : 1, cursor: 'pointer' }}
                       >
-                        {isSavingPago ? 'Procesando...' : 'Confirmar Registro de Pago'}
+                        {isSavingPago ? 'Procesando...' : (editingPayment ? 'Guardar Cambios' : 'Confirmar Registro de Pago')}
                       </button>
                     </div>
                   </div>
@@ -2105,6 +2144,41 @@ function App() {
                   </table>
                 </div>
               </section>
+
+              {/* MODAL DETALLES PAGO */}
+              {showPaymentDetails && (
+                <div className="gallery-modal" style={{ justifyContent: 'center', alignItems: 'center' }}>
+                  <div style={{ background: isDark ? '#0f172a' : '#ffffff', padding: '32px', borderRadius: '24px', width: '100%', maxWidth: '450px', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}`, boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
+                    <div className="gallery-header" style={{ marginBottom: '20px' }}>
+                      <h3 className="font-outfit" style={{ color: isDark ? '#fff' : '#0f172a' }}>Detalle del Pago</h3>
+                      <div className="close-gallery" onClick={() => setShowPaymentDetails(null)}><X size={24} /></div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '10px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'}` }}>
+                        <span style={{ color: '#64748b', fontSize: '0.9rem' }}>Franquicia</span>
+                        <span style={{ color: isDark ? '#fff' : '#0f172a', fontWeight: 600 }}>{showPaymentDetails.locality_name}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '10px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'}` }}>
+                        <span style={{ color: '#64748b', fontSize: '0.9rem' }}>Concepto</span>
+                        <span style={{ color: isDark ? '#fff' : '#0f172a', fontWeight: 600 }}>{showPaymentDetails.concept}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '10px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'}` }}>
+                        <span style={{ color: '#64748b', fontSize: '0.9rem' }}>Monto</span>
+                        <span style={{ color: '#10b981', fontWeight: 700, fontSize: '1.1rem' }}>${showPaymentDetails.amount?.toLocaleString()}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '10px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'}` }}>
+                        <span style={{ color: '#64748b', fontSize: '0.9rem' }}>Fecha</span>
+                        <span style={{ color: isDark ? '#fff' : '#0f172a', fontWeight: 600 }}>{showPaymentDetails.date}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#64748b', fontSize: '0.9rem' }}>ID Pago</span>
+                        <span style={{ color: '#64748b', fontSize: '0.8rem', opacity: 0.7 }}>{showPaymentDetails.id}</span>
+                      </div>
+                    </div>
+                    <button className="action-btn" onClick={() => setShowPaymentDetails(null)} style={{ width: '100%', marginTop: '30px', padding: '14px' }}>Cerrar</button>
+                  </div>
+                </div>
+              )}
 
               {/* MODAL USUARIOS */}
               {showUserModal && (
