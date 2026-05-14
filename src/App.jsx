@@ -6,7 +6,7 @@ import {
   ArrowUpRight, Settings, LogOut, LogIn, Sun, Moon, ShieldCheck, Building, Home, Heart,
   MessageCircle, Navigation, Utensils, Smartphone, Stethoscope, ShoppingBag, Star,
   X, Camera, CreditCard, DollarSign, AlertCircle, Map, UserPlus, MoreVertical,
-  Briefcase, ShoppingCart, Gamepad2, Headset, ShieldAlert,
+  Briefcase, ShoppingCart, Gamepad2, Headset, ShieldAlert, Image,
   Globe, Link as LinkIcon, Palette, Save, Trash2, Edit3, CheckCircle, Menu, Eye, EyeOff
 } from 'lucide-react';
 
@@ -74,7 +74,7 @@ const usersData = [
 
 
 function App() {
-  const APP_VERSION = '1.0.3'; // Incrementar este número para forzar limpieza de caché en todos los usuarios
+  const APP_VERSION = '1.0.4'; // Incrementar este número para forzar limpieza de caché en todos los usuarios
 
   useEffect(() => {
     const savedVersion = localStorage.getItem('app_version');
@@ -1512,20 +1512,34 @@ function App() {
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                         <div style={{ display: 'flex', gap: '15px', alignItems: 'stretch' }}>
-                          <input type="file" id="mainImageInput" style={{ display: 'none' }} accept="image/jpeg, image/png, image/webp" onChange={handleMainImageChange} />
-                          <div onClick={() => document.getElementById('mainImageInput').click()} style={{ flex: 1, border: `2px dashed ${isDark ? 'rgba(255,255,255,0.2)' : '#cbd5e1'}`, borderRadius: '16px', padding: newComMainImagePreview ? '0' : '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px', background: isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc', cursor: 'pointer', overflow: 'hidden', position: 'relative', minHeight: '120px' }}>
-                            {newComMainImagePreview ? (
-                              <img src={newComMainImagePreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0 }} />
-                            ) : (
-                              <>
-                                <Camera size={28} color="#94a3b8" />
-                                <span style={{ fontSize: '0.75rem', color: '#94a3b8', textAlign: 'center' }}>Foto Principal</span>
-                              </>
-                            )}
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <input type="file" id="mainImageInput" style={{ display: 'none' }} accept="image/*" onChange={handleMainImageChange} />
+                            <input type="file" id="mainCameraInput" style={{ display: 'none' }} accept="image/*" capture="environment" onChange={handleMainImageChange} />
+                            <div style={{ position: 'relative', height: '120px', border: `2px dashed ${isDark ? 'rgba(255,255,255,0.2)' : '#cbd5e1'}`, borderRadius: '16px', overflow: 'hidden', background: isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc' }}>
+                              {newComMainImagePreview ? (
+                                <>
+                                  <img src={newComMainImagePreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                  <div onClick={() => setNewComMainImagePreview(null)} style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(0,0,0,0.6)', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}><X size={14} /></div>
+                                </>
+                              ) : (
+                                <div style={{ display: 'flex', height: '100%' }}>
+                                  <div onClick={() => document.getElementById('mainImageInput').click()} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', borderRight: `1px dashed ${isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}`, transition: 'all 0.2s' }}>
+                                    <Image size={24} color="#94a3b8" />
+                                    <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: '600' }}>GALERÍA</span>
+                                  </div>
+                                  <div onClick={() => document.getElementById('mainCameraInput').click()} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s' }}>
+                                    <Camera size={24} color="#94a3b8" />
+                                    <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: '600' }}>CÁMARA</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                           </div>
 
-                          <input type="file" id="galleryInput" multiple style={{ display: 'none' }} accept="image/jpeg, image/png, image/webp" onChange={handleGalleryChange} />
                           <div style={{ flex: 2, display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                            <input type="file" id="galleryInput" multiple style={{ display: 'none' }} accept="image/*" onChange={handleGalleryChange} />
+                            <input type="file" id="galleryCameraInput" style={{ display: 'none' }} accept="image/*" capture="environment" onChange={handleGalleryChange} />
+                            
                             {galleryItems.map((item, idx) => (
                               <div key={idx} style={{ width: '80px', height: '80px', borderRadius: '12px', overflow: 'hidden', position: 'relative', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}` }}>
                                 <img src={item.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt={`Gallery ${idx}`} />
@@ -1534,9 +1548,17 @@ function App() {
                                 </div>
                               </div>
                             ))}
+                            
                             {galleryItems.length < 6 && (
-                              <div onClick={() => document.getElementById('galleryInput').click()} style={{ width: '80px', height: '80px', border: `2px dashed ${isDark ? 'rgba(255,255,255,0.2)' : '#cbd5e1'}`, borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc', cursor: 'pointer', color: '#94a3b8' }}>
-                                <Plus size={24} />
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <div onClick={() => document.getElementById('galleryInput').click()} style={{ width: '80px', height: '80px', border: `2px dashed ${isDark ? 'rgba(255,255,255,0.2)' : '#cbd5e1'}`, borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc', cursor: 'pointer', color: '#94a3b8', gap: '4px' }}>
+                                  <Plus size={20} />
+                                  <span style={{ fontSize: '0.6rem', fontWeight: '600' }}>FOTOS</span>
+                                </div>
+                                <div onClick={() => document.getElementById('galleryCameraInput').click()} style={{ width: '80px', height: '80px', border: `2px dashed ${isDark ? 'rgba(255,255,255,0.2)' : '#cbd5e1'}`, borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc', cursor: 'pointer', color: '#94a3b8', gap: '4px' }}>
+                                  <Camera size={20} />
+                                  <span style={{ fontSize: '0.6rem', fontWeight: '600' }}>CÁMARA</span>
+                                </div>
                               </div>
                             )}
                           </div>
@@ -2100,6 +2122,40 @@ function App() {
                   </div>
                 </div>
               )}
+              {/* MODAL DETALLES PAGO */}
+              {showPaymentDetails && (
+                <div className="gallery-modal" style={{ justifyContent: 'center', alignItems: 'center' }}>
+                  <div style={{ background: isDark ? '#0f172a' : '#ffffff', padding: '32px', borderRadius: '24px', width: '100%', maxWidth: '450px', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}`, boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
+                    <div className="gallery-header" style={{ marginBottom: '20px' }}>
+                      <h3 className="font-outfit" style={{ color: isDark ? '#fff' : '#0f172a' }}>Detalle del Pago</h3>
+                      <div className="close-gallery" onClick={() => setShowPaymentDetails(null)}><X size={24} /></div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '10px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'}` }}>
+                        <span style={{ color: '#64748b', fontSize: '0.9rem' }}>Franquicia</span>
+                        <span style={{ color: isDark ? '#fff' : '#0f172a', fontWeight: 600 }}>{showPaymentDetails.locality_name}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '10px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'}` }}>
+                        <span style={{ color: '#64748b', fontSize: '0.9rem' }}>Concepto</span>
+                        <span style={{ color: isDark ? '#fff' : '#0f172a', fontWeight: 600 }}>{showPaymentDetails.concept}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '10px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'}` }}>
+                        <span style={{ color: '#64748b', fontSize: '0.9rem' }}>Monto</span>
+                        <span style={{ color: '#10b981', fontWeight: 700, fontSize: '1.1rem' }}>${showPaymentDetails.amount?.toLocaleString()}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '10px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'}` }}>
+                        <span style={{ color: '#64748b', fontSize: '0.9rem' }}>Fecha</span>
+                        <span style={{ color: isDark ? '#fff' : '#0f172a', fontWeight: 600 }}>{showPaymentDetails.date}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#64748b', fontSize: '0.9rem' }}>ID Pago</span>
+                        <span style={{ color: '#64748b', fontSize: '0.8rem', opacity: 0.7 }}>{showPaymentDetails.id}</span>
+                      </div>
+                    </div>
+                    <button className="action-btn" onClick={() => setShowPaymentDetails(null)} style={{ width: '100%', marginTop: '30px', padding: '14px' }}>Cerrar</button>
+                  </div>
+                </div>
+              )}
             </>
           )}
 
@@ -2144,41 +2200,6 @@ function App() {
                   </table>
                 </div>
               </section>
-
-              {/* MODAL DETALLES PAGO */}
-              {showPaymentDetails && (
-                <div className="gallery-modal" style={{ justifyContent: 'center', alignItems: 'center' }}>
-                  <div style={{ background: isDark ? '#0f172a' : '#ffffff', padding: '32px', borderRadius: '24px', width: '100%', maxWidth: '450px', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}`, boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
-                    <div className="gallery-header" style={{ marginBottom: '20px' }}>
-                      <h3 className="font-outfit" style={{ color: isDark ? '#fff' : '#0f172a' }}>Detalle del Pago</h3>
-                      <div className="close-gallery" onClick={() => setShowPaymentDetails(null)}><X size={24} /></div>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '10px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'}` }}>
-                        <span style={{ color: '#64748b', fontSize: '0.9rem' }}>Franquicia</span>
-                        <span style={{ color: isDark ? '#fff' : '#0f172a', fontWeight: 600 }}>{showPaymentDetails.locality_name}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '10px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'}` }}>
-                        <span style={{ color: '#64748b', fontSize: '0.9rem' }}>Concepto</span>
-                        <span style={{ color: isDark ? '#fff' : '#0f172a', fontWeight: 600 }}>{showPaymentDetails.concept}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '10px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'}` }}>
-                        <span style={{ color: '#64748b', fontSize: '0.9rem' }}>Monto</span>
-                        <span style={{ color: '#10b981', fontWeight: 700, fontSize: '1.1rem' }}>${showPaymentDetails.amount?.toLocaleString()}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '10px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'}` }}>
-                        <span style={{ color: '#64748b', fontSize: '0.9rem' }}>Fecha</span>
-                        <span style={{ color: isDark ? '#fff' : '#0f172a', fontWeight: 600 }}>{showPaymentDetails.date}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#64748b', fontSize: '0.9rem' }}>ID Pago</span>
-                        <span style={{ color: '#64748b', fontSize: '0.8rem', opacity: 0.7 }}>{showPaymentDetails.id}</span>
-                      </div>
-                    </div>
-                    <button className="action-btn" onClick={() => setShowPaymentDetails(null)} style={{ width: '100%', marginTop: '30px', padding: '14px' }}>Cerrar</button>
-                  </div>
-                </div>
-              )}
 
               {/* MODAL USUARIOS */}
               {showUserModal && (
@@ -2753,6 +2774,9 @@ function App() {
               {publicLocalityId && (
                 <button onClick={() => setShowPublicLocalityModal(false)} className="action-btn" style={{ width: '100%', marginTop: '20px', padding: '12px' }}>Cerrar</button>
               )}
+              <div style={{ marginTop: '25px', textAlign: 'center', borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'}`, paddingTop: '15px' }}>
+                <p style={{ fontSize: '0.75rem', color: '#64748b', margin: 0 }}>Powered by <span style={{ fontWeight: 800, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Digimedios Apps</span></p>
+              </div>
             </div>
           </div>
         )}
@@ -3127,6 +3151,11 @@ function App() {
           </div>
         )}
 
+        <footer style={{ textAlign: 'center', padding: '40px 20px 100px 20px', background: isDark ? 'transparent' : '#f8fafc' }}>
+          <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '8px' }}>D'Compras © 2026</p>
+          <p style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Desarrollado por <span style={{ fontWeight: 700, color: '#6366f1' }}>Digimedios Apps</span></p>
+        </footer>
+
         <nav className="bottom-nav">
           <div className={`nav-tab ${publicTab === 'inicio' ? 'active' : ''}`} onClick={() => setPublicTab('inicio')}><Home size={24} /><span>Inicio</span></div>
           <div className={`nav-tab ${publicTab === 'rubros' ? 'active' : ''}`} onClick={() => setPublicTab('rubros')}><Tags size={24} /><span>Rubros</span></div>
@@ -3210,6 +3239,9 @@ function App() {
           {loginError && <div style={{ color: '#ef4444', fontSize: '0.85rem', textAlign: 'center', background: 'rgba(239,68,68,0.1)', padding: '10px', borderRadius: '8px' }}>{loginError.includes('Invalid') ? 'Credenciales incorrectas' : loginError}</div>}
           <button type="submit" className="action-btn primary" style={{ padding: '16px', fontSize: '1rem', marginTop: '10px' }}>Ingresar al Sistema</button>
         </form>
+        <div style={{ marginTop: '30px', textAlign: 'center', borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'}`, paddingTop: '20px' }}>
+          <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0 }}>From <span style={{ fontWeight: 800, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Digimedios Apps</span></p>
+        </div>
       </div>
     </div>
   );
