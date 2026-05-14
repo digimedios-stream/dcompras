@@ -3062,7 +3062,19 @@ function App() {
 
         {/* IN-APP VIEWER MODAL (OVER ALL) */}
         {viewerUrl && (() => {
-          const sanitizedUrl = viewerUrl.trim().replace(/http:\/\//g, 'https://');
+          // Sanitización agresiva para forzar HTTPS y evitar Mixed Content en Vercel
+          let sanitized = viewerUrl.trim()
+            .replace(/http:\/\//g, 'https://')
+            .replace(/'http:'/g, "'https:'")
+            .replace(/"http:"/g, '"https:"')
+            // Esta línea rompe la detección de protocolo del script del clima para obligarlo a ser seguro
+            .replace(/d\.location\.protocol\s*==\s*'https:'\s*\?\s*'https:'\s*:\s*'http:'/g, "'https:'");
+
+          // Si es un embed, inyectamos una meta tag que fuerza a todas las peticiones internas a ser HTTPS
+          if (sanitized.startsWith('<')) {
+            sanitized = `<meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">${sanitized}`;
+          }
+
           return (
             <div className="inapp-viewer-backdrop">
               <div className="viewer-container">
@@ -3073,13 +3085,13 @@ function App() {
                   </button>
                 </div>
                 <div style={{ flex: 1, position: 'relative', background: isDark ? '#0f172a' : '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                  {sanitizedUrl.startsWith('<') ? (
-                    <iframe srcDoc={sanitizedUrl} style={{ width: '100%', height: '100%', border: 'none' }} title={viewerTitle} allowFullScreen></iframe>
+                  {sanitized.startsWith('<') ? (
+                    <iframe srcDoc={sanitized} style={{ width: '100%', height: '100%', border: 'none' }} title={viewerTitle} allowFullScreen></iframe>
                   ) : (
-                    sanitizedUrl.match(/\.(jpeg|jpg|gif|png|webp|avif|jfif)(\?.*)?$/i) ? (
-                      <img src={sanitizedUrl} alt={viewerTitle} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }} />
+                    sanitized.match(/\.(jpeg|jpg|gif|png|webp|avif|jfif)(\?.*)?$/i) ? (
+                      <img src={sanitized} alt={viewerTitle} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }} />
                     ) : (
-                      <iframe src={sanitizedUrl} style={{ width: '100%', height: '100%', border: 'none' }} title={viewerTitle} allowFullScreen></iframe>
+                      <iframe src={sanitized} style={{ width: '100%', height: '100%', border: 'none' }} title={viewerTitle} allowFullScreen></iframe>
                     )
                   )}
                 </div>
