@@ -74,7 +74,7 @@ const usersData = [
 
 
 function App() {
-  const APP_VERSION = '1.0.4'; // Incrementar este número para forzar limpieza de caché en todos los usuarios
+  const APP_VERSION = '1.0.5'; // Incrementar este número para forzar limpieza de caché en todos los usuarios
 
   useEffect(() => {
     const savedVersion = localStorage.getItem('app_version');
