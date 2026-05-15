@@ -430,7 +430,8 @@ function App() {
 
   const fetchPagos = async () => {
     setIsLoadingPagos(true);
-    const { data } = await supabase.from('pagos').select('*, comercios(name, localidades(name)), planes(name, duration_months)').order('created_at', { ascending: false });
+    // Incluimos locality_id en comercios para que el agrupamiento por localidad funcione
+    const { data } = await supabase.from('pagos').select('*, comercios(name, locality_id, localidades(name)), planes(name, duration_months)').order('created_at', { ascending: false });
     if (data) setPagosHistorial(data);
     setIsLoadingPagos(false);
   };
@@ -1077,6 +1078,23 @@ function App() {
       userRole === 'commerce' ? comercios.filter(c => c.id === assignedCommerceId) :
         comercios.filter(c => c.locality_id === assignedLocalityId);
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const nextWeek = new Date(today);
+    nextWeek.setDate(today.getDate() + 7);
+
+    const expiredCommerces = filteredCommerce.filter(c => {
+      if (!c.expiration_date || c.status !== 'active') return false;
+      const expDate = new Date(c.expiration_date);
+      return expDate < today;
+    }).sort((a, b) => new Date(a.expiration_date) - new Date(b.expiration_date));
+
+    const warningCommerces = filteredCommerce.filter(c => {
+      if (!c.expiration_date || c.status !== 'active') return false;
+      const expDate = new Date(c.expiration_date);
+      return expDate >= today && expDate <= nextWeek;
+    }).sort((a, b) => new Date(a.expiration_date) - new Date(b.expiration_date));
+
     const displayUsers = userRole === 'superadmin' ? usersList : usersList.filter(u => {
       if (u.role !== 'Comercio') return false;
       const userCommerce = comercios.find(c => c.id === u.commerce_id);
@@ -1148,6 +1166,49 @@ function App() {
                 <div className="stat-card animate-in" style={{ animationDelay: '0.1s' }}><div className="stat-card-header"><div className="stat-icon emerald"><MapPin size={22} /></div></div><div className="stat-label">{userRole === 'localadmin' ? 'Estado Zona' : 'Localidades'}</div><div className="stat-value">{userRole === 'localadmin' ? 'Activo' : localities.length}</div></div>
                 <div className="stat-card animate-in" style={{ animationDelay: '0.2s' }}><div className="stat-card-header"><div className="stat-icon pink"><Users size={22} /></div></div><div className="stat-label">Usuarios</div><div className="stat-value">{displayUsers.length.toLocaleString()}</div></div>
               </div>
+
+              {/* ALERTAS DE VENCIMIENTO */}
+              {['superadmin', 'localadmin'].includes(userRole) && (expiredCommerces.length > 0 || warningCommerces.length > 0) && (
+                <section className="animate-in" style={{ animationDelay: '0.3s' }}>
+                  <h3 className="font-outfit" style={{ color: isDark ? '#fff' : '#0f172a', marginBottom: '16px', fontSize: '1.25rem' }}>Alertas de Vencimiento</h3>
+                  <div className="expiry-alerts-container">
+                    {expiredCommerces.map((biz) => {
+                      const msg = encodeURIComponent(`Hola ${biz.name}, te contactamos desde D'Compras para recordarte que tu plan venció el ${new Date(biz.expiration_date).toLocaleDateString()}. Por favor, comunícate con nosotros para regularizar tu situación y mantener tu comercio activo en la plataforma.`);
+                      return (
+                        <div key={`exp-${biz.id}`} className="expiry-card expired">
+                          <div className="expiry-card-header">
+                            <h4 className="expiry-card-title">{biz.name}</h4>
+                            <span className="expiry-card-date">Vencido</span>
+                          </div>
+                          <p className="expiry-card-subtitle">Venció el: {new Date(biz.expiration_date).toLocaleDateString()}</p>
+                          {biz.whatsapp && (
+                            <button className="expiry-action-btn" onClick={() => window.open(`https://wa.me/549${biz.whatsapp}?text=${msg}`, '_blank')}>
+                              <MessageCircle size={16} /> Enviar Recordatorio
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {warningCommerces.map((biz) => {
+                      const msg = encodeURIComponent(`Hola ${biz.name}, te contactamos desde D'Compras para recordarte que tu plan está próximo a vencer el ${new Date(biz.expiration_date).toLocaleDateString()}. Puedes renovarlo para seguir disfrutando de todos los beneficios.`);
+                      return (
+                        <div key={`warn-${biz.id}`} className="expiry-card warning">
+                          <div className="expiry-card-header">
+                            <h4 className="expiry-card-title">{biz.name}</h4>
+                            <span className="expiry-card-date">Próximo a Vencer</span>
+                          </div>
+                          <p className="expiry-card-subtitle">Vence el: {new Date(biz.expiration_date).toLocaleDateString()}</p>
+                          {biz.whatsapp && (
+                            <button className="expiry-action-btn" onClick={() => window.open(`https://wa.me/549${biz.whatsapp}?text=${msg}`, '_blank')}>
+                              <MessageCircle size={16} /> Enviar Recordatorio
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
 
               <section className="table-section animate-in" style={{ animationDelay: '0.4s' }}>
                 <div className="table-header">
@@ -1485,10 +1546,10 @@ function App() {
                           value={newComDescription}
                           onChange={e => setNewComDescription(e.target.value)}
                           placeholder="Contanos qué vendés o qué servicios ofrecés..."
-                          maxLength={250}
+                          maxLength={550}
                           style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none', minHeight: '80px', resize: 'vertical' }}
                         />
-                        <div style={{ textAlign: 'right', fontSize: '0.7rem', color: '#94a3b8', marginTop: '4px' }}>{(newComDescription || '').length}/250</div>
+                        <div style={{ textAlign: 'right', fontSize: '0.7rem', color: '#94a3b8', marginTop: '4px' }}>{(newComDescription || '').length}/550</div>
                       </div>
 
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
@@ -1813,29 +1874,35 @@ function App() {
                   <div className="stat-card-header"><div className="stat-icon emerald"><DollarSign size={22} /></div></div>
                   <div className="stat-label">Ingresos Totales (Bruto)</div>
                   <div className="stat-value">
-                    ${pagosHistorial.reduce((acc, p) => acc + (p.amount || 0), 0).toLocaleString()}
+                    ${pagosHistorial
+                      .filter(p => userRole === 'superadmin' || p.comercios?.locality_id === assignedLocalityId)
+                      .reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0).toLocaleString()}
                   </div>
                 </div>
                 <div className="stat-card animate-in" style={{ animationDelay: '0.1s' }}>
                   <div className="stat-card-header"><div className="stat-icon pink"><TrendingUp size={22} /></div></div>
                   <div className="stat-label">{userRole === 'superadmin' ? 'Mis Comisiones (Regalías)' : 'A Pagar a Central'}</div>
                   <div className="stat-value" style={{ color: '#fb7185' }}>
-                    ${pagosHistorial.reduce((acc, p) => {
-                      const locality = localities.find(l => l.id === p.comercios?.locality_id);
-                      const commission = (p.amount || 0) * ((locality?.commission_percentage || 0) / 100);
-                      return acc + commission;
-                    }, 0).toLocaleString()}
+                    ${pagosHistorial
+                      .filter(p => userRole === 'superadmin' || p.comercios?.locality_id === assignedLocalityId)
+                      .reduce((acc, p) => {
+                        const locality = localities.find(l => l.id === p.comercios?.locality_id);
+                        const commission = (parseFloat(p.amount) || 0) * ((locality?.commission_percentage || 0) / 100);
+                        return acc + commission;
+                      }, 0).toLocaleString()}
                   </div>
                 </div>
                 <div className="stat-card animate-in" style={{ animationDelay: '0.2s' }}>
                   <div className="stat-card-header"><div className="stat-icon indigo"><CreditCard size={22} /></div></div>
                   <div className="stat-label">Neto Franquicia</div>
                   <div className="stat-value">
-                    ${pagosHistorial.reduce((acc, p) => {
-                      const locality = localities.find(l => l.id === p.comercios?.locality_id);
-                      const commission = (p.amount || 0) * ((locality?.commission_percentage || 0) / 100);
-                      return acc + (p.amount - commission);
-                    }, 0).toLocaleString()}
+                    ${pagosHistorial
+                      .filter(p => userRole === 'superadmin' || p.comercios?.locality_id === assignedLocalityId)
+                      .reduce((acc, p) => {
+                        const locality = localities.find(l => l.id === p.comercios?.locality_id);
+                        const commission = (parseFloat(p.amount) || 0) * ((locality?.commission_percentage || 0) / 100);
+                        return acc + ((parseFloat(p.amount) || 0) - commission);
+                      }, 0).toLocaleString()}
                   </div>
                 </div>
               </div>
@@ -1900,11 +1967,16 @@ function App() {
                     <div style={{ textAlign: 'center', padding: '40px', color: '#6366f1' }}>Cargando historial...</div>
                   ) : (() => {
                     const searchQ = adminPagosSearch.toLowerCase().trim();
-                    const filtered = pagosHistorial.filter(p => {
-                      if (!searchQ) return true;
-                      return p.comercios?.name?.toLowerCase().includes(searchQ) || p.comercios?.localidades?.name?.toLowerCase().includes(searchQ) || p.planes?.name?.toLowerCase().includes(searchQ);
-                    });
-                    const grouped = localities.map(loc => ({ ...loc, items: filtered.filter(p => p.comercios?.locality_id === loc.id) })).filter(g => g.items.length > 0);
+                    const filtered = pagosHistorial
+                      .filter(p => userRole === 'superadmin' || p.comercios?.locality_id === assignedLocalityId)
+                      .filter(p => {
+                        if (!searchQ) return true;
+                        return p.comercios?.name?.toLowerCase().includes(searchQ) || p.comercios?.localidades?.name?.toLowerCase().includes(searchQ) || p.planes?.name?.toLowerCase().includes(searchQ);
+                      });
+                    const grouped = localities
+                      .filter(loc => userRole === 'superadmin' || loc.id === assignedLocalityId)
+                      .map(loc => ({ ...loc, items: filtered.filter(p => p.comercios?.locality_id === loc.id) }))
+                      .filter(g => g.items.length > 0);
                     if (grouped.length === 0) return <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>{searchQ ? `No se encontraron pagos para "${adminPagosSearch}"` : 'No hay pagos registrados aún.'}</div>;
                     return grouped.map(group => (
                       <section key={group.id} className="table-section animate-in" style={{ marginBottom: '16px' }}>
