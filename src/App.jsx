@@ -248,6 +248,10 @@ function App() {
   const [newOfertaCommerceId, setNewOfertaCommerceId] = useState('');
   const [isSavingOferta, setIsSavingOferta] = useState(false);
   const [selectedOferta, setSelectedOferta] = useState(null);
+  const [seenOfertas, setSeenOfertas] = useState(() => {
+    const stored = localStorage.getItem('dcompras_seen_ofertas');
+    return stored ? JSON.parse(stored) : [];
+  });
 
   useEffect(() => {
     // Escuchar la sesión actual
@@ -3187,6 +3191,11 @@ function App() {
                 key={oferta.id} 
                 onClick={() => {
                   setSelectedOferta(oferta);
+                  if (!seenOfertas.includes(oferta.id)) {
+                    const newSeen = [...seenOfertas, oferta.id];
+                    setSeenOfertas(newSeen);
+                    localStorage.setItem('dcompras_seen_ofertas', JSON.stringify(newSeen));
+                  }
                 }}
                 style={{ flexShrink: 0, textAlign: 'center', cursor: 'pointer' }}
               >
@@ -3195,11 +3204,14 @@ function App() {
                   height: '72px', 
                   borderRadius: '50%', 
                   padding: '3px', 
-                  background: 'linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)', 
+                  background: seenOfertas.includes(oferta.id) 
+                    ? (isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0') 
+                    : 'linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)', 
                   display: 'flex', 
                   justifyContent: 'center', 
                   alignItems: 'center',
-                  boxShadow: '0 4px 10px rgba(0,0,0,0.1)'
+                  boxShadow: seenOfertas.includes(oferta.id) ? 'none' : '0 4px 10px rgba(0,0,0,0.1)',
+                  transition: 'all 0.3s'
                 }}>
                   <div style={{ 
                     width: '100%', 
