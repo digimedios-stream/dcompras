@@ -7,7 +7,7 @@ import {
   MessageCircle, Navigation, Utensils, Smartphone, Stethoscope, ShoppingBag, Star,
   X, Camera, CreditCard, DollarSign, AlertCircle, Map, UserPlus, MoreVertical,
   Briefcase, ShoppingCart, Gamepad2, Headset, ShieldAlert, Image,
-  Globe, Link as LinkIcon, Palette, Save, Trash2, Edit3, CheckCircle, Menu, Eye, EyeOff
+  Globe, Link as LinkIcon, Palette, Save, Trash2, Edit3, CheckCircle, Menu, Eye, EyeOff, Zap
 } from 'lucide-react';
 
 // --- MOCK DATA ---
@@ -192,6 +192,7 @@ function App() {
   const [newComInstagram, setNewComInstagram] = useState('');
   const [newComFacebook, setNewComFacebook] = useState('');
   const [newComWebsite, setNewComWebsite] = useState('');
+  const [newComHasOffersAccess, setNewComHasOffersAccess] = useState(false);
 
   // Estados para Facturación
   const [planes, setPlanes] = useState([]);
@@ -234,7 +235,18 @@ function App() {
   const [viewerUrl, setViewerUrl] = useState(null);
   const [viewerTitle, setViewerTitle] = useState('');
   const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [isInstalled, setIsInstalled] = useState(false);
   const [showInstallModal, setShowInstallModal] = useState(false);
+
+  // Estados para Ofertas Flash
+  const [ofertas, setOfertas] = useState([]);
+  const [isLoadingOfertas, setIsLoadingOfertas] = useState(false);
+  const [showOfertaModal, setShowOfertaModal] = useState(false);
+  const [newOfertaDesc, setNewOfertaDesc] = useState('');
+  const [newOfertaImage, setNewOfertaImage] = useState(null);
+  const [newOfertaPreview, setNewOfertaPreview] = useState(null);
+  const [newOfertaCommerceId, setNewOfertaCommerceId] = useState('');
+  const [isSavingOferta, setIsSavingOferta] = useState(false);
 
   useEffect(() => {
     // Escuchar la sesión actual
@@ -262,8 +274,16 @@ function App() {
     fetchPagos();
     fetchPreciosPlanes();
     fetchUsersList();
+    fetchOfertas();
 
     // PWA Install Prompt Logic
+    const checkInstalled = () => {
+      if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+        setIsInstalled(true);
+      }
+    };
+    checkInstalled();
+
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
@@ -274,8 +294,20 @@ function App() {
       const threeDays = 3 * 24 * 60 * 60 * 1000;
       
       if (!lastPrompt || (now - parseInt(lastPrompt)) > threeDays) {
-        setTimeout(() => setShowInstallModal(true), 5000); // Aparece a los 5 segundos
+        setTimeout(() => {
+          // Solo mostramos si no está instalada
+          if (!window.matchMedia('(display-mode: standalone)').matches) {
+            setShowInstallModal(true);
+          }
+        }, 5000); 
       }
+    });
+
+    window.addEventListener('appinstalled', () => {
+      setIsInstalled(true);
+      setDeferredPrompt(null);
+      setShowInstallModal(false);
+      console.log('PWA instalada con éxito');
     });
   }, []);
 
@@ -434,6 +466,80 @@ function App() {
     const { data } = await supabase.from('pagos').select('*, comercios(name, locality_id, localidades(name)), planes(name, duration_months)').order('created_at', { ascending: false });
     if (data) setPagosHistorial(data);
     setIsLoadingPagos(false);
+  };
+  
+  const fetchOfertas = async () => {
+    setIsLoadingOfertas(true);
+    const now = new Date().toISOString();
+    const { data, error } = await supabase
+      .from('ofertas')
+      .select('*, comercios(name, main_image, locality_id, localidades(name))')
+      .gt('expires_at', now)
+      .order('created_at', { ascending: false });
+    
+    if (!error) setOfertas(data || []);
+    setIsLoadingOfertas(false);
+  };
+
+  const handleSaveOferta = async () => {
+    if (!newOfertaImage && !newOfertaPreview) {
+      alert('Debes subir una imagen para la oferta.');
+      return;
+    }
+    
+    const commerceId = userRole === 'commerce' ? assignedCommerceId : newOfertaCommerceId;
+    if (!commerceId) {
+      alert('Debes seleccionar un comercio.');
+      return;
+    }
+
+    setIsSavingOferta(true);
+    try {
+      let imageUrl = newOfertaPreview;
+
+      if (newOfertaImage) {
+        const fileExt = newOfertaImage.name.split('.').pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const filePath = `ofertas/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('comercios')
+          .upload(filePath, newOfertaImage);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage.from('comercios').getPublicUrl(filePath);
+        imageUrl = publicUrl;
+      }
+
+      const commerce = comercios.find(c => c.id === commerceId);
+      
+      const { error } = await supabase.from('ofertas').insert([{
+        commerce_id: commerceId,
+        locality_id: commerce?.locality_id,
+        description: newOfertaDesc,
+        image_url: imageUrl
+      }]);
+
+      if (error) throw error;
+
+      alert('¡Oferta publicada con éxito!');
+      setShowOfertaModal(false);
+      setNewOfertaDesc('');
+      setNewOfertaImage(null);
+      setNewOfertaPreview(null);
+      fetchOfertas();
+    } catch (err) {
+      alert('Error guardando oferta: ' + err.message);
+    } finally {
+      setIsSavingOferta(false);
+    }
+  };
+
+  const handleDeleteOferta = async (id) => {
+    if (!window.confirm('¿Estás seguro de eliminar esta oferta?')) return;
+    const { error } = await supabase.from('ofertas').delete().eq('id', id);
+    if (!error) fetchOfertas();
   };
 
   const handleEditFranchisePayment = (item) => {
@@ -758,7 +864,8 @@ function App() {
       description: newComDescription,
       instagram_url: newComInstagram,
       facebook_url: newComFacebook,
-      website_url: newComWebsite
+      website_url: newComWebsite,
+      has_offers_access: newComHasOffersAccess
     };
 
     if (imageUrl) payload.main_image = imageUrl;
@@ -883,6 +990,7 @@ function App() {
       setNewComInstagram(commerce.instagram_url || '');
       setNewComFacebook(commerce.facebook_url || '');
       setNewComWebsite(commerce.website_url || '');
+      setNewComHasOffersAccess(commerce.has_offers_access || false);
       setNewComHours(commerce.business_hours || {
         mon: { open: '08:00', close: '12:00', open2: '16:00', close2: '20:00', active: true },
         tue: { open: '08:00', close: '12:00', open2: '16:00', close2: '20:00', active: true },
@@ -1070,6 +1178,7 @@ function App() {
       { id: 'localidades', label: 'Localidades', icon: MapPin, roles: ['superadmin'] },
       { id: 'rubros', label: 'Rubros', icon: Tags, roles: ['superadmin', 'localadmin'] },
       { id: 'usuarios', label: 'Accesos', icon: Users, roles: ['superadmin', 'localadmin'] },
+      { id: 'ofertas', label: 'Ofertas Flash', icon: Zap, roles: ['superadmin', 'localadmin', 'commerce'] },
       { id: 'metrics', label: 'Métricas e informes', icon: TrendingUp, roles: ['localadmin'] },
       { id: 'planes_local', label: 'Planes', icon: CreditCard, roles: ['localadmin'] },
     ].filter(item => item.roles.includes(userRole));
@@ -1626,6 +1735,40 @@ function App() {
                         </div>
                         <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Podés subir hasta 6 fotos adicionales para la galería de este comercio.</span>
                       </div>
+
+                      {/* GESTIÓN DE PERMISOS PREMIUM (Sólo Admins) */}
+                      {userRole !== 'commerce' && (
+                        <div style={{ background: isDark ? 'rgba(99, 102, 241, 0.1)' : '#e0e7ff', padding: '15px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px', border: `1px solid ${isDark ? 'rgba(99, 102, 241, 0.2)' : '#c7d2fe'}` }}>
+                          <div style={{ background: '#6366f1', padding: '8px', borderRadius: '8px', color: '#fff' }}><Zap size={20} /></div>
+                          <div style={{ flex: 1 }}>
+                            <h5 style={{ margin: 0, fontSize: '0.9rem', color: isDark ? '#fff' : '#1e293b' }}>Derecho a Ofertas Flash</h5>
+                            <p style={{ margin: 0, fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#475569' }}>Permitir que este comercio publique en el Muro de Ofertas.</p>
+                          </div>
+                          <div 
+                            onClick={() => setNewComHasOffersAccess(!newComHasOffersAccess)}
+                            style={{ 
+                              width: '44px', 
+                              height: '24px', 
+                              background: newComHasOffersAccess ? '#10b981' : '#cbd5e1', 
+                              borderRadius: '20px', 
+                              position: 'relative', 
+                              cursor: 'pointer',
+                              transition: 'background 0.3s'
+                            }}
+                          >
+                            <div style={{ 
+                              width: '20px', 
+                              height: '20px', 
+                              background: '#fff', 
+                              borderRadius: '50%', 
+                              position: 'absolute', 
+                              top: '2px', 
+                              transition: 'all 0.3s',
+                              left: newComHasOffersAccess ? '22px' : '2px' 
+                            }}></div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* GESTION DE PLAN / VENCIMIENTO */}
                       {editingCommerceId && (
@@ -2371,6 +2514,97 @@ function App() {
               )}
             </>
           )}
+          {activeTab === 'ofertas' && (
+            <>
+              <div className="stats-grid">
+                <div className="stat-card animate-in"><div className="stat-card-header"><div className="stat-icon indigo"><Zap size={22} /></div></div><div className="stat-label">Ofertas Activas</div><div className="stat-value">{ofertas.filter(o => !assignedLocalityId || o.locality_id === assignedLocalityId).length}</div></div>
+                <div className="stat-card animate-in" style={{ animationDelay: '0.1s' }}><div className="stat-card-header"><div className="stat-icon emerald"><TrendingUp size={22} /></div></div><div className="stat-label">Expiración</div><div className="stat-value" style={{ fontSize: '1.2rem', marginTop: '10px', color: isDark ? '#fff' : '#0f172a' }}>24 Horas</div></div>
+                <div className="stat-card animate-in" style={{ animationDelay: '0.2s' }}><div className="stat-card-header"><div className="stat-icon pink"><CreditCard size={22} /></div></div><div className="stat-label">Derecho Premium</div><div className="stat-value">{userRole === 'commerce' ? (assignedCommerce?.has_offers_access ? 'Habilitado' : 'No Habilitado') : 'Control Admin'}</div></div>
+              </div>
+
+              <section className="table-section animate-in" style={{ animationDelay: '0.3s' }}>
+                <div className="table-header">
+                  <h3 className="font-outfit">Muro de Ofertas Flash</h3>
+                  {(userRole !== 'commerce' || assignedCommerce?.has_offers_access) && (
+                    <button className="btn-add" onClick={() => {
+                      setNewOfertaCommerceId(userRole === 'commerce' ? assignedCommerceId : '');
+                      setNewOfertaDesc('');
+                      setNewOfertaImage(null);
+                      setNewOfertaPreview(null);
+                      setShowOfertaModal(true);
+                    }}>
+                      <Plus size={18} /> Publicar Oferta
+                    </button>
+                  )}
+                </div>
+                
+                {userRole === 'commerce' && !assignedCommerce?.has_offers_access && (
+                  <div style={{ margin: '20px 32px', padding: '20px', borderRadius: '16px', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', display: 'flex', alignItems: 'center', gap: '15px' }}>
+                    <AlertCircle color="#f59e0b" size={24} />
+                    <p style={{ margin: 0, color: '#f59e0b', fontSize: '0.9rem' }}>Tu comercio aún no tiene habilitado el derecho a publicar Ofertas Flash. Contacta al administrador local para adquirir este beneficio.</p>
+                  </div>
+                )}
+
+                <div className="table-wrapper">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Comercio</th>
+                        <th>Oferta</th>
+                        <th>Creada</th>
+                        <th>Expira en</th>
+                        <th style={{ textAlign: 'right' }}>Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {isLoadingOfertas ? (
+                        <tr><td colSpan="5" style={{ textAlign: 'center', padding: '20px' }}>Cargando ofertas...</td></tr>
+                      ) : ofertas.filter(o => {
+                        if (userRole === 'superadmin') return true;
+                        if (userRole === 'localadmin') return o.locality_id === assignedLocalityId;
+                        return o.commerce_id === assignedCommerceId;
+                      }).length === 0 ? (
+                        <tr><td colSpan="5" style={{ textAlign: 'center', padding: '20px' }}>No hay ofertas activas actualmente.</td></tr>
+                      ) : (
+                        ofertas.filter(o => {
+                          if (userRole === 'superadmin') return true;
+                          if (userRole === 'localadmin') return o.locality_id === assignedLocalityId;
+                          return o.commerce_id === assignedCommerceId;
+                        }).map((item) => {
+                          const expDate = new Date(item.expires_at);
+                          const diff = expDate - new Date();
+                          const hoursLeft = Math.max(0, Math.floor(diff / (1000 * 60 * 60)));
+                          const minsLeft = Math.max(0, Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)));
+
+                          return (
+                            <tr key={item.id}>
+                              <td>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                  <img src={item.image_url} alt="Oferta" style={{ width: '50px', height: '50px', borderRadius: '10px', objectFit: 'cover' }} />
+                                  <span style={{ fontWeight: 600, color: isDark ? '#fff' : '#0f172a' }}>{item.comercios?.name}</span>
+                                </div>
+                              </td>
+                              <td style={{ maxWidth: '250px', fontSize: '0.85rem', color: '#94a3b8' }}>{item.description || 'Sin descripción'}</td>
+                              <td style={{ fontSize: '0.85rem' }}>{new Date(item.created_at).toLocaleString()}</td>
+                              <td>
+                                <span className="badge badge-pink" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                                  <Zap size={12} /> {hoursLeft}h {minsLeft}m
+                                </span>
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                <button className="delete-btn" onClick={() => handleDeleteOferta(item.id)}><Trash2 size={16} /></button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </>
+          )}
+
           {/* TAB: CONFIGURACIÓN */}
           {activeTab === 'configuracion' && (
             <>
@@ -2574,6 +2808,72 @@ function App() {
                 </div>
               </section>
             </>
+          )}
+
+          {/* MODAL OFERTAS FLASH */}
+          {showOfertaModal && (
+            <div className="gallery-modal" style={{ justifyContent: 'center', alignItems: 'center' }}>
+              <div style={{ background: isDark ? '#0f172a' : '#ffffff', padding: '32px', borderRadius: '24px', width: '100%', maxWidth: '450px', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}`, boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
+                <div className="gallery-header" style={{ marginBottom: '20px' }}>
+                  <h3 className="font-outfit" style={{ color: isDark ? '#fff' : '#0f172a' }}>Publicar Oferta Flash</h3>
+                  <div className="close-gallery" onClick={() => setShowOfertaModal(false)}><X size={24} /></div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {userRole !== 'commerce' && (
+                    <div>
+                      <label style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '6px', display: 'block' }}>Seleccionar Comercio</label>
+                      <select value={newOfertaCommerceId} onChange={e => setNewOfertaCommerceId(e.target.value)} style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none' }}>
+                        <option value="">Seleccionar...</option>
+                        {comercios.filter(c => userRole === 'superadmin' || c.locality_id === assignedLocalityId).map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div>
+                    <label style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '6px', display: 'block' }}>Imagen de la Oferta</label>
+                    <div style={{ width: '100%', height: '200px', borderRadius: '16px', border: `2px dashed ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', position: 'relative' }} onClick={() => document.getElementById('oferta-upload').click()}>
+                      {newOfertaPreview ? (
+                        <img src={newOfertaPreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <>
+                          <Camera size={32} color="#6366f1" style={{ marginBottom: '10px' }} />
+                          <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Click para subir imagen</span>
+                        </>
+                      )}
+                      <input id="oferta-upload" type="file" accept="image/*" hidden onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          setNewOfertaImage(file);
+                          const reader = new FileReader();
+                          reader.onloadend = () => setNewOfertaPreview(reader.result);
+                          reader.readAsDataURL(file);
+                        }
+                      }} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '6px', display: 'block' }}>Descripción Corta</label>
+                    <textarea value={newOfertaDesc} onChange={e => setNewOfertaDesc(e.target.value)} placeholder="Ej: 2x1 en hamburguesas solo por hoy..." style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1'}`, color: isDark ? '#fff' : '#0f172a', outline: 'none', height: '80px', resize: 'none' }} />
+                  </div>
+
+                  <div style={{ background: isDark ? 'rgba(99, 102, 241, 0.1)' : '#e0e7ff', padding: '15px', borderRadius: '12px', border: `1px solid ${isDark ? 'rgba(99, 102, 241, 0.2)' : '#c7d2fe'}` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#6366f1', marginBottom: '4px' }}>
+                      <AlertCircle size={16} />
+                      <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Información Importante</span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.75rem', color: isDark ? '#94a3b8' : '#475569' }}>Esta oferta se eliminará automáticamente en 24 horas. Asegúrate de que la imagen sea clara y atractiva.</p>
+                  </div>
+
+                  <button onClick={handleSaveOferta} disabled={isSavingOferta} className="action-btn primary" style={{ padding: '14px', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                    {isSavingOferta ? 'Publicando...' : <><Zap size={18} /> Publicar Ahora</>}
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* MODAL PRECIOS POR CIUDAD (GLOBAL) */}
@@ -2877,6 +3177,108 @@ function App() {
             )}
           </div>
         </header>
+
+        {/* MURO DE OFERTAS FLASH (Estilo Stories) */}
+        {ofertas.filter(o => !publicLocalityId || o.locality_id == publicLocalityId).length > 0 && (
+          <div className="ofertas-flash-container" style={{ padding: '20px 20px 0 20px', overflowX: 'auto', display: 'flex', gap: '15px', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+            {ofertas.filter(o => !publicLocalityId || o.locality_id == publicLocalityId).map((oferta) => (
+              <div 
+                key={oferta.id} 
+                onClick={() => {
+                  setSelectedBusiness(oferta.comercios);
+                  setViewerTitle(`Oferta de ${oferta.comercios?.name}`);
+                  setViewerUrl(oferta.image_url);
+                  // Opcional: mostrar un modal específico de oferta si se desea
+                }}
+                style={{ flexShrink: 0, textAlign: 'center', cursor: 'pointer' }}
+              >
+                <div style={{ 
+                  width: '72px', 
+                  height: '72px', 
+                  borderRadius: '50%', 
+                  padding: '3px', 
+                  background: 'linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)', 
+                  display: 'flex', 
+                  justifyContent: 'center', 
+                  alignItems: 'center',
+                  boxShadow: '0 4px 10px rgba(0,0,0,0.1)'
+                }}>
+                  <div style={{ 
+                    width: '100%', 
+                    height: '100%', 
+                    borderRadius: '50%', 
+                    border: `2px solid ${isDark ? '#0f172a' : '#fff'}`, 
+                    overflow: 'hidden' 
+                  }}>
+                    <img src={oferta.image_url} alt="Oferta" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </div>
+                </div>
+                <span style={{ 
+                  display: 'block', 
+                  fontSize: '0.7rem', 
+                  marginTop: '6px', 
+                  color: isDark ? '#e2e8f0' : '#1e293b', 
+                  fontWeight: 600,
+                  maxWidth: '72px',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}>
+                  {oferta.comercios?.name}
+                </span>
+                <div style={{ 
+                  fontSize: '0.6rem', 
+                  color: '#fb7185', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  gap: '2px', 
+                  fontWeight: 800 
+                }}>
+                  <Zap size={8} fill="#fb7185" /> OFERTA
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {(!isInstalled && deferredPrompt) && (
+          <div className="install-banner animate-in" style={{ padding: '0 20px', marginTop: '15px' }}>
+            <button 
+              onClick={async () => {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                  setDeferredPrompt(null);
+                  setIsInstalled(true);
+                }
+              }}
+              style={{
+                width: '100%',
+                padding: '16px',
+                borderRadius: '18px',
+                background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+                color: '#fff',
+                border: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '12px',
+                cursor: 'pointer',
+                boxShadow: '0 10px 25px -5px rgba(99, 102, 241, 0.4)',
+                position: 'relative',
+                overflow: 'hidden'
+              }}
+            >
+              <div style={{ position: 'absolute', top: 0, left: '-100%', width: '50%', height: '100%', background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)', animation: 'shimmer 3s infinite' }}></div>
+              <Smartphone size={24} />
+              <div style={{ textAlign: 'left' }}>
+                <span style={{ display: 'block', fontSize: '0.95rem', fontWeight: 800 }}>Instalar Aplicación Oficial</span>
+                <span style={{ display: 'block', fontSize: '0.75rem', opacity: 0.9 }}>Acceso directo y mejor experiencia</span>
+              </div>
+              <ArrowUpRight size={20} style={{ marginLeft: 'auto' }} />
+            </button>
+          </div>
+        )}
 
         <section className="public-hero">
           <img src="/logo.png" alt="D'Compras Logo" style={{ height: '160px', objectFit: 'contain', margin: '0 auto 15px auto', display: 'block' }} />

@@ -771,6 +771,11 @@ h4,
   animation: fadeInUp 0.5s ease forwards;
 }
 
+@keyframes shimmer {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
 .animate-in:nth-child(1) {
   animation-delay: 0.05s;
 }
