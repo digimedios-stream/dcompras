@@ -3120,7 +3120,7 @@ function App() {
               </h4>
               <p style={{ margin: '0 0 20px 0', fontSize: '0.85rem', color: isDark ? '#94a3b8' : '#7f1d1d' }}>Para quejas, denuncias o soporte técnico directo con la administración central de D'Compras.</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <button onClick={() => window.open('mailto:soporte@dcompras.com.ar')} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #ef4444', background: 'transparent', color: '#ef4444', fontWeight: '600', cursor: 'pointer' }}>
+                <button onClick={() => window.open('mailto:digimediosapps@gmail.com')} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #ef4444', background: 'transparent', color: '#ef4444', fontWeight: '600', cursor: 'pointer' }}>
                   Enviar Correo Electrónico
                 </button>
                 <button onClick={() => window.open('https://wa.me/5493775473317', '_blank')} style={{ width: '100%', padding: '12px', borderRadius: '12px', background: '#ef4444', color: '#fff', border: 'none', fontWeight: '600', cursor: 'pointer' }}>
