@@ -247,6 +247,7 @@ function App() {
   const [newOfertaPreview, setNewOfertaPreview] = useState(null);
   const [newOfertaCommerceId, setNewOfertaCommerceId] = useState('');
   const [isSavingOferta, setIsSavingOferta] = useState(false);
+  const [selectedOferta, setSelectedOferta] = useState(null);
 
   useEffect(() => {
     // Escuchar la sesión actual
@@ -3185,10 +3186,7 @@ function App() {
               <div 
                 key={oferta.id} 
                 onClick={() => {
-                  setSelectedBusiness(oferta.comercios);
-                  setViewerTitle(`Oferta de ${oferta.comercios?.name}`);
-                  setViewerUrl(oferta.image_url);
-                  // Opcional: mostrar un modal específico de oferta si se desea
+                  setSelectedOferta(oferta);
                 }}
                 style={{ flexShrink: 0, textAlign: 'center', cursor: 'pointer' }}
               >
@@ -3676,6 +3674,95 @@ function App() {
             </div>
           );
         })()}
+
+        {/* MODAL DETALLE DE OFERTA FLASH */}
+        {selectedOferta && (
+          <div className="inapp-viewer-backdrop" onClick={() => setSelectedOferta(null)} style={{ zIndex: 11000 }}>
+            <div 
+              style={{ 
+                background: isDark ? '#0f172a' : '#ffffff', 
+                width: '90%', 
+                maxWidth: '500px', 
+                borderRadius: '30px', 
+                overflow: 'hidden', 
+                display: 'flex', 
+                flexDirection: 'column', 
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+                animation: 'slideUp 0.3s ease-out'
+              }} 
+              onClick={e => e.stopPropagation()}
+            >
+              <div style={{ position: 'relative', width: '100%', aspectRatio: '1/1', background: '#000' }}>
+                <img src={selectedOferta.image_url} alt="Oferta" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                <div 
+                  onClick={() => setSelectedOferta(null)} 
+                  style={{ 
+                    position: 'absolute', 
+                    top: '15px', 
+                    right: '15px', 
+                    background: 'rgba(0,0,0,0.5)', 
+                    borderRadius: '50%', 
+                    width: '36px', 
+                    height: '36px', 
+                    display: 'flex', 
+                    justifyContent: 'center', 
+                    alignItems: 'center', 
+                    cursor: 'pointer', 
+                    color: '#fff', 
+                    backdropFilter: 'blur(4px)' 
+                  }}
+                >
+                  <X size={20} />
+                </div>
+              </div>
+              <div style={{ padding: '24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px' }}>
+                  <img src={selectedOferta.comercios?.main_image} style={{ width: '40px', height: '40px', borderRadius: '10px', objectFit: 'cover' }} alt="Logo" />
+                  <div>
+                    <h4 className="font-outfit" style={{ margin: 0, color: isDark ? '#fff' : '#0f172a', fontSize: '1.1rem' }}>{selectedOferta.comercios?.name}</h4>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Publicado hace poco</span>
+                  </div>
+                </div>
+                
+                <p style={{ 
+                  color: isDark ? '#e2e8f0' : '#1e293b', 
+                  fontSize: '1rem', 
+                  lineHeight: '1.6', 
+                  margin: '0 0 20px 0',
+                  background: isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc',
+                  padding: '15px',
+                  borderRadius: '16px',
+                  borderLeft: '4px solid #fb7185'
+                }}>
+                  {selectedOferta.description || "¡Aprovechá esta oferta única por tiempo limitado!"}
+                </p>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button 
+                    className="action-btn primary" 
+                    style={{ flex: 1, padding: '14px', borderRadius: '14px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
+                    onClick={() => {
+                      const msg = encodeURIComponent(`Hola ${selectedOferta.comercios?.name}, vi su OFERTA FLASH en D'Compras: "${selectedOferta.description}" y me interesa.`);
+                      window.open(`https://wa.me/549${selectedOferta.comercios?.whatsapp}?text=${msg}`, '_blank');
+                    }}
+                  >
+                    <MessageCircle size={20} /> Consultar Oferta
+                  </button>
+                  <button 
+                    className="action-btn" 
+                    style={{ padding: '14px', borderRadius: '14px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+                    onClick={() => {
+                      setSelectedBusiness(selectedOferta.comercios);
+                      setSelectedOferta(null);
+                    }}
+                  >
+                    <Store size={20} /> Perfil
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
