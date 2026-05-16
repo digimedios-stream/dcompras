@@ -474,7 +474,7 @@ function App() {
     const now = new Date().toISOString();
     const { data, error } = await supabase
       .from('ofertas')
-      .select('*, comercios(name, main_image, locality_id, localidades(name))')
+      .select('*, comercios(name, main_image, locality_id, whatsapp, localidades(name))')
       .gt('expires_at', now)
       .order('created_at', { ascending: false });
     
@@ -3743,7 +3743,9 @@ function App() {
                     style={{ flex: 1, padding: '14px', borderRadius: '14px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
                     onClick={() => {
                       const msg = encodeURIComponent(`Hola ${selectedOferta.comercios?.name}, vi su OFERTA FLASH en D'Compras: "${selectedOferta.description}" y me interesa.`);
-                      window.open(`https://wa.me/549${selectedOferta.comercios?.whatsapp}?text=${msg}`, '_blank');
+                      const rawPhone = String(selectedOferta.comercios?.whatsapp || '').replace(/\D/g, '');
+                      const finalPhone = rawPhone.startsWith('549') ? rawPhone : `549${rawPhone}`;
+                      window.open(`https://wa.me/${finalPhone}?text=${msg}`, '_blank');
                     }}
                   >
                     <MessageCircle size={20} /> Consultar Oferta
