@@ -253,6 +253,17 @@ function App() {
     return stored ? JSON.parse(stored) : [];
   });
 
+  const [analyticsStats, setAnalyticsStats] = useState({ opens: 0, installs: 0 });
+
+  const fetchAnalytics = async () => {
+    const { data, error } = await supabase.from('analytics_events').select('event_type');
+    if (!error && data) {
+      const opens = data.filter(d => d.event_type === 'app_open').length;
+      const installs = data.filter(d => d.event_type === 'app_install').length;
+      setAnalyticsStats({ opens, installs });
+    }
+  };
+
   useEffect(() => {
     // Escuchar la sesión actual
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -280,6 +291,18 @@ function App() {
     fetchPreciosPlanes();
     fetchUsersList();
     fetchOfertas();
+    fetchAnalytics();
+
+    const logAppOpen = async () => {
+      const lastOpen = localStorage.getItem('dcompras_last_open');
+      const now = Date.now();
+      // Registrar apertura máximo una vez por hora
+      if (!lastOpen || (now - parseInt(lastOpen)) > 3600000) {
+        await supabase.from('analytics_events').insert([{ event_type: 'app_open' }]);
+        localStorage.setItem('dcompras_last_open', now.toString());
+      }
+    };
+    logAppOpen();
 
     // PWA Install Prompt Logic
     const checkInstalled = () => {
@@ -313,6 +336,7 @@ function App() {
       setDeferredPrompt(null);
       setShowInstallModal(false);
       console.log('PWA instalada con éxito');
+      supabase.from('analytics_events').insert([{ event_type: 'app_install' }]);
     });
   }, []);
 
@@ -1279,6 +1303,12 @@ function App() {
                 <div className="stat-card animate-in"><div className="stat-card-header"><div className="stat-icon indigo"><Store size={22} /></div></div><div className="stat-label">Comercios {userRole === 'localadmin' ? 'Locales' : 'Globales'}</div><div className="stat-value">{filteredCommerce.length}</div></div>
                 <div className="stat-card animate-in" style={{ animationDelay: '0.1s' }}><div className="stat-card-header"><div className="stat-icon emerald"><MapPin size={22} /></div></div><div className="stat-label">{userRole === 'localadmin' ? 'Estado Zona' : 'Localidades'}</div><div className="stat-value">{userRole === 'localadmin' ? 'Activo' : localities.length}</div></div>
                 <div className="stat-card animate-in" style={{ animationDelay: '0.2s' }}><div className="stat-card-header"><div className="stat-icon pink"><Users size={22} /></div></div><div className="stat-label">Usuarios</div><div className="stat-value">{displayUsers.length.toLocaleString()}</div></div>
+                {userRole === 'superadmin' && (
+                  <>
+                    <div className="stat-card animate-in" style={{ animationDelay: '0.3s' }}><div className="stat-card-header"><div className="stat-icon" style={{ backgroundColor: 'rgba(99, 102, 241, 0.1)', color: '#6366f1' }}><Smartphone size={22} /></div></div><div className="stat-label">Aperturas App</div><div className="stat-value">{analyticsStats.opens.toLocaleString()}</div></div>
+                    <div className="stat-card animate-in" style={{ animationDelay: '0.4s' }}><div className="stat-card-header"><div className="stat-icon" style={{ backgroundColor: 'rgba(34, 197, 94, 0.1)', color: '#22c55e' }}><CheckCircle size={22} /></div></div><div className="stat-label">Instalaciones</div><div className="stat-value">{analyticsStats.installs.toLocaleString()}</div></div>
+                  </>
+                )}
               </div>
 
               {/* ALERTAS DE VENCIMIENTO */}
