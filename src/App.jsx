@@ -264,6 +264,14 @@ function App() {
     }
   };
 
+  const logInstall = async () => {
+    if (!localStorage.getItem('dcompras_install_tracked')) {
+      await supabase.from('analytics_events').insert([{ event_type: 'app_install' }]);
+      localStorage.setItem('dcompras_install_tracked', 'true');
+      fetchAnalytics();
+    }
+  };
+
   useEffect(() => {
     // Escuchar la sesión actual
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -336,7 +344,7 @@ function App() {
       setDeferredPrompt(null);
       setShowInstallModal(false);
       console.log('PWA instalada con éxito');
-      supabase.from('analytics_events').insert([{ event_type: 'app_install' }]);
+      logInstall();
     });
   }, []);
 
@@ -3138,7 +3146,10 @@ function App() {
                     setShowInstallModal(false);
                     deferredPrompt.prompt();
                     const { outcome } = await deferredPrompt.userChoice;
-                    if (outcome === 'accepted') setDeferredPrompt(null);
+                    if (outcome === 'accepted') {
+                      setDeferredPrompt(null);
+                      logInstall();
+                    }
                     localStorage.setItem('dcompras_install_prompt_last', Date.now().toString());
                   }} 
                   className="action-btn" 
